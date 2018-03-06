@@ -16,7 +16,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 
-#define PORT 58000
+#define PORT 59000
 
 int main(int argc, char const *argv[])
 {
@@ -32,24 +32,25 @@ int main(int argc, char const *argv[])
     if(fd==-1)
     	exit(1);
 
-   /* hostptr=gethostbyname("tejo.tecnico.ulisboa.pt");
+    hostptr=gethostbyname("tejo.tecnico.ulisboa.pt");
 
     if(hostptr==NULL){
     	exit(2);
     }
-	*/
-
+	
+/*
     if(gethostname(buffer2, 128)==-1)
     	printf("%s\n", strerror(errno));
     else
     	printf("host name: %s\n", buffer2);
+
 
     hostptr=gethostbyname(buffer2);
 
     if(hostptr==NULL){
     	exit(2);
     }
-
+*/
 
     if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL)
     	exit(3);
