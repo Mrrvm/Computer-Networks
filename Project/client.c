@@ -2,32 +2,36 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define N_ARGS 4
-
 int main(int argc, char *argv[])
 {
-   int opt;
-   int ip = 0, port = 0;
+  int opt;
+  int port = -1;
+  char *ip = NULL;
 
-   while ((opt = getopt(argc, argv, "i:p:")) != -1) {
-       switch (opt) {
-	       case 'i':
-	           ip = atoi(optarg);
-	           break;
-	       case 'p':
-	           port = atoi(optarg);
-	           break;
-	       default: /* '?' */
-	           fprintf(stderr, "Usage: %s [-i csip] [-p csp]\n", argv[0]);
-	           exit(EXIT_FAILURE);
-       }
-   }
+  while ((opt = getopt(argc, argv, "i:p:")) != -1) {
+      switch (opt) {
+        case 'i':
+            ip = optarg;
+            break;
+        case 'p':
+            port = atoi(optarg);
+            break;
+        default: /* '?' */
+            fprintf(stderr, "Usage: %s [-i csip] [-p csp]\n", argv[0]);
+            exit(EXIT_FAILURE);
+      }
+  }
 
-    if (optind != N_ARGS) {
-       fprintf(stderr, "Usage: %s [-i csip] [-p csp]\n", argv[0]);
-       exit(EXIT_FAILURE);
-   	}
+  if(ip == NULL || port == -1) {
+      fprintf(stderr, "Usage: %s [-i csip] [-p csp]\n", argv[0]);
+      exit(EXIT_FAILURE);
+  }
+  
+  if (argc != 5) {
+      fprintf(stderr, "Usage: %s [-i csip] [-p csp]\n", argv[0]);
+      exit(EXIT_FAILURE);
+  }
 
-   fprintf(stderr, "Arguments %d %d\n",ip, port );
+   fprintf(stderr, "Arguments %s %d\n",ip, port );
    exit(EXIT_SUCCESS);
 }
