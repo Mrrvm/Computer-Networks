@@ -52,11 +52,12 @@ int main(int argc, char const *argv[])
     	if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr*)&clientaddr,&addrlen)==-1)
     		exit(5);
 
+    	printf("%s\n", buffer);
+
+        fgets(buffer, 80, stdin);
+
         if(sendto(fd, buffer, strlen(buffer)+1, 0, (struct sockaddr*)&clientaddr, addrlen)==-1)
             exit(4);
-
-
-    	printf("%s", buffer);
 
     }
     close(fd);
