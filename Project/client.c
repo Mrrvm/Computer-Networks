@@ -14,7 +14,7 @@
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 
 #define DEFAULT_PORT 59000
-#define GET_DS_SERVER "GET_DS_SERVER "
+#define GET_DS_SERVER "GET_DS_SERVER"
 
 int main(int argc, char *argv[])
 {
@@ -92,14 +92,17 @@ int main(int argc, char *argv[])
             if(strstr(command, "request_service") != NULL){
                 memset(reply,0,strlen(reply));
                 state = busy;
-                strcat(reply, GET_DS_SERVER);
-                strcat(reply, command + 16);
+                sscanf(command, "%*[^\' '] %d", &x);
+                sprintf(reply, "%s %d", GET_DS_SERVER, x);
 
                 fprintf(stderr, "Sending message: %s\n", reply);
 
                 if(sendto(sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                     exit(EXIT_FAILURE);
                 
+            }
+            else if(strstr(command, "exit") != NULL){
+                exit(EXIT_SUCCESS);
             }
             else
                 fprintf(stderr, "Invalid Command\n");
