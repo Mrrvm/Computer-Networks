@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     int id_stup, port_stup;
     int iam_stup = 0;
     struct hostent *scptr = NULL, *myptr = NULL;
-    enum {idle, busy} state;
+    enum {idle, busy, busy2} state;
     fd_set rfds;
     char command[64], pcommand[64];
     char *ip_stup = NULL;
@@ -121,19 +121,17 @@ int main(int argc, char *argv[])
         FD_SET(0, &rfds);
         maxfd = 0;
 
-        if(state == busy){
-            FD_SET(sc_sock, &rfds);
-            maxfd = max(0, sc_sock);
-        }
+        if(state == busy){FD_SET(sc_sock, &rfds); maxfd = max(0, sc_sock);}
+        if(state == busy2){FD_SET(cli_sock, &rfds); maxfd = max(0, cli_sock);}
 
         counter = select(maxfd+1, &rfds, (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         if(counter <= 0) exit(EXIT_FAILURE);
 
         if(FD_ISSET(0, &rfds)){
             fgets(command, 64, stdin);
-            state = busy;
 
             if(strstr(command, "join") != NULL){
+                state = busy;
                 memset(reply,0,strlen(reply));
                 sscanf(command, "%*[^\' '] %d", &x);
                 sprintf(reply, "%s %d;%d", GET_START, x, id);
@@ -148,13 +146,15 @@ int main(int argc, char *argv[])
         }
         if(FD_ISSET(sc_sock, &rfds)) {
             memset(reply,0,strlen(reply));
+            memset(pcommand,0,strlen(pcommand));
 
-            if(recvfrom(sc_sock, reply, sizeof(reply), 0, (struct sockaddr*)&serveraddr, &sc_addrlen)==-1)
+            if(recvfrom(sc_sock, reply, sizeof(reply), 0, (struct sockaddr*)&sc_addr, &sc_addrlen)==-1)
                 exit(EXIT_FAILURE);
 
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "OK") != NULL){
+                state = busy2;
 
                 sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%[^\';']%d", id, id_stup, ip_stup, port_stup);
 
@@ -175,6 +175,25 @@ int main(int argc, char *argv[])
 
             }
         }
+        if(FD_ISSET(cli_sock, &rfds)) {
+            memset(reply,0,strlen(reply));
+            memset(pcommand,0,strlen(pcommand));
+
+            if(recvfrom(cli_sock, reply, sizeof(reply), 0, (struct sockaddr*)&cli_sock, &cli_addrlen)==-1)
+                exit(EXIT_FAILURE);
+
+            fprintf(stderr, "Received: %s\n", reply);
+
+            if(strstr(reply, "MY_SERVICE") != NULL){
+            sscanf(reply, "%*[^\' '] %d", pcommand);
+            sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+
+            if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
+                exit(EXIT_FAILURE);
+            }
+
+        }
+
     }  
 
     close(sock);
