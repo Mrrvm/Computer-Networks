@@ -15,6 +15,9 @@
 
 #define DEFAULT_PORT 59000
 #define GET_DS_SERVER "GET_DS_SERVER"
+#define MY_SERVICE_ON "MY_SERVICE ON"
+#define MY_SERVICE_OFF "MY_SERVICE OFF"
+
 
 int main(int argc, char *argv[])
 {
@@ -22,13 +25,14 @@ int main(int argc, char *argv[])
     int port = -1;
     int sock;
     int addrlen;
+    int in_service = 0;
     int x;
     int maxfd, counter;
     struct hostent *hostptr = NULL;
     struct sockaddr_in serveraddr;
     fd_set rfds;
     enum {idle, busy} state;
-    char command[64], reply[64];
+    char command[64], reply[64], id[64], ip[64], upt[64];
 
     while ((opt = getopt(argc, argv, "i:p:")) != -1) {
         switch (opt) {
@@ -88,10 +92,10 @@ int main(int argc, char *argv[])
 
         if(FD_ISSET(0, &rfds)){
             fgets(command, 64, stdin);
+            state = busy;
 
-            if(strstr(command, "request_service") != NULL){
+            if(strstr(command, "request_service") != NULL && in_service == 0){
                 memset(reply,0,strlen(reply));
-                state = busy;
                 sscanf(command, "%*[^\' '] %d", &x);
                 sprintf(reply, "%s %d", GET_DS_SERVER, x);
 
@@ -99,11 +103,20 @@ int main(int argc, char *argv[])
 
                 if(sendto(sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                     exit(EXIT_FAILURE);
+
+
                 
             }
             else if(strstr(command, "exit") != NULL){
+                if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+                        exit(EXIT_FAILURE);
                 exit(EXIT_SUCCESS);
+            }   
+            else if(strstr(command, "terminate_service") != NULL){
+                if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+                        exit(EXIT_FAILURE);
             }
+            
             else
                 fprintf(stderr, "Invalid Command\n");
             
@@ -114,12 +127,37 @@ int main(int argc, char *argv[])
         }
         if(FD_ISSET(sock, &rfds)) {
             memset(reply,0,strlen(reply));
-            state == idle;
 
             if(recvfrom(sock, reply, sizeof(reply), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
                 exit(EXIT_FAILURE);
-            fprintf(stderr, "Reply: %s\n", reply);
+            fprintf(stderr, "Received: %s\n", reply);
 
+            if(strstr(reply, "OK") != NULL){
+
+                sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%s", id, ip, upt);
+
+                serveraddr.sin_family = AF_INET;
+                inet_aton(ip, &serveraddr.sin_addr);
+                serveraddr.sin_port = htons((u_short)atoi(upt));
+                addrlen = sizeof(serveraddr);
+
+                if(sendto(sock, MY_SERVICE_ON, strlen(MY_SERVICE_ON)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+                        exit(EXIT_FAILURE);
+
+            }
+            else if(strstr(reply, "YOUR_SERVICE") != NULL){
+
+                if(strstr(reply, "OFF") != NULL){
+                    serveraddr.sin_family = AF_INET;
+                    serveraddr.sin_addr.s_addr = ((struct in_addr*)(hostptr->h_addr_list[0]))->s_addr;
+                    serveraddr.sin_port = htons((u_short)port);
+                    addrlen = sizeof(serveraddr);
+
+                    in_service = 0;
+                }
+                else if(strstr(reply, "ON") != NULL)
+                    in_service = 1; 
+            }
         }
     }
 
