@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
             else if(strstr(command, "exit") != NULL){
                 if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
+                close(sock);
                 exit(EXIT_SUCCESS);
             }   
             else if(strstr(command, "terminate_service") != NULL){
@@ -126,6 +127,7 @@ int main(int argc, char *argv[])
 
                 sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%s", id, ip, upt);
 
+                if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) exit(EXIT_FAILURE);
                 serveraddr.sin_family = AF_INET;
                 inet_aton(ip, &serveraddr.sin_addr);
                 serveraddr.sin_port = htons((u_short)atoi(upt));
@@ -138,6 +140,7 @@ int main(int argc, char *argv[])
             else if(strstr(reply, "YOUR_SERVICE") != NULL){
 
                 if(strstr(reply, "OFF") != NULL){
+                    if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) exit(EXIT_FAILURE);
                     serveraddr.sin_family = AF_INET;
                     serveraddr.sin_addr.s_addr = ((struct in_addr*)(hostptr->h_addr_list[0]))->s_addr;
                     serveraddr.sin_port = htons((u_short)port);

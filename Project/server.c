@@ -28,9 +28,9 @@ int main(int argc, char *argv[])
 {
     int opt;
     int id = -1;
-    int my_port = -1, client_port = -1, next_port = -1, sc_port = -1;
-    int sc_addrlen, next_addrlen;
-    int sc_sock;
+    int my_port = -1, cli_port = -1, next_port = -1, sc_port = -1;
+    int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
+    int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int id_stup, port_stup;
     int iam_stup = 0;
     struct hostent *scptr = NULL, *myptr = NULL;
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     fd_set rfds;
     char command[64], pcommand[64];
     char *ip_stup = NULL;
-    struct sockaddr_in sc_addr, next_addr;
+    struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     while ((opt = getopt(argc, argv, "n:j:u:t:i:p:")) != -1) {
         switch (opt) {
@@ -49,10 +49,10 @@ int main(int argc, char *argv[])
                 myptr = gethostbyname(optarg);
                 break;
             case 'u':
-                client_port = atoi(optarg);
+                cli_port = atoi(optarg);
                 break;
             case 't':
-                next_port = atoi(optarg);
+                my_port = atoi(optarg);
                 break;
             case 'i':
                 scptr = gethostbyname(optarg);
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 
     if(id == -1) show_usage(argv[0]);
     if(myptr == NULL) show_usage(argv[0]);
-    if(client_port == -1) show_usage(argv[0]);
+    if(cli_port == -1) show_usage(argv[0]);
     if(next_port == -1) show_usage(argv[0]);
 
     if(scptr == NULL) {
@@ -86,6 +86,25 @@ int main(int argc, char *argv[])
     sc_addr.sin_addr.s_addr = ((struct in_addr*)(scptr->h_addr_list[0]))->s_addr;
     sc_addr.sin_port = htons((u_short)sc_port);
     sc_addrlen = sizeof(sc_addr);
+
+    cli_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if(cli_sock ==-1) exit(EXIT_FAILURE);
+    if(memset((void*)&cli_addr, (int)'\0', sizeof(cli_addr))==NULL) exit(EXIT_FAILURE);
+    cli_addr.sin_family = AF_INET;
+    cli_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    cli_addr.sin_port = htons((u_short)cli_port);
+    cli_addrlen = sizeof(cli_addr);
+    bind(cli_sock, (struct sockaddr*)&cli_addr, cli_addrlen);
+
+    prev_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if(prev_sock ==-1) exit(EXIT_FAILURE);
+    if(memset((void*)&my_addr, (int)'\0', sizeof(my_addr))==NULL) exit(EXIT_FAILURE);
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    my_addr.sin_port = htons((u_short)my_port);
+    my_addrlen = sizeof(my_addr);
+    bind(prev_sock, (struct sockaddr*)&my_addr, my_addrlen);
+    listen(my_addr, 5);
 
     next_sock = socket(AF_INET, SOCK_STREAM, 0);
     if(next_sock ==-1) exit(EXIT_FAILURE);
@@ -141,7 +160,7 @@ int main(int argc, char *argv[])
 
                 if(id_stup == 0) {
 
-                    sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, service, id, inet_ntoa((struct in_addr)next_addr.sin_addr), next_port);
+                    sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)next_addr.sin_addr), next_port);
 
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);

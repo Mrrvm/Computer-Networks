@@ -32,13 +32,13 @@ int main(int argc, char const *argv[])
     if(fd==-1)
     	exit(1);
 
-    hostptr=gethostbyname("tejo.tecnico.ulisboa.pt");
+   /* hostptr=gethostbyname("tejo.tecnico.ulisboa.pt");
 
     if(hostptr==NULL){
     	exit(2);
     }
-	
-/*
+	*/
+
     if(gethostname(buffer2, 128)==-1)
     	printf("%s\n", strerror(errno));
     else
@@ -50,7 +50,7 @@ int main(int argc, char const *argv[])
     if(hostptr==NULL){
     	exit(2);
     }
-*/
+
 
     if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL)
     	exit(3);
@@ -63,6 +63,7 @@ int main(int argc, char const *argv[])
     addrlen = sizeof(serveraddr);
 
     while(1){
+        memset(buffer,0,strlen(buffer));
     	fgets (msg, 80, stdin);
 
     	if(sendto(fd, msg, strlen(msg)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
@@ -75,7 +76,7 @@ int main(int argc, char const *argv[])
     	if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
     		exit(5);
 
-    	printf("%s", buffer);
+    	printf("%s\n", buffer);
 
     }
     close(fd);
