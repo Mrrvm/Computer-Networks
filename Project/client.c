@@ -13,7 +13,8 @@
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 
-#define DEFAULT_PORT 59000
+#define SC_PORT 59000
+#define SC_DOMAIN "tejo.tecnico.ulisboa.pt"
 #define GET_DS_SERVER "GET_DS_SERVER"
 #define MY_SERVICE_ON "MY_SERVICE ON"
 #define MY_SERVICE_OFF "MY_SERVICE OFF"
@@ -49,22 +50,14 @@ int main(int argc, char *argv[])
     }
 
     if(hostptr == NULL) {
-        hostptr = gethostbyname("tejo.tecnico.ulisboa.pt");
-        if(hostptr==NULL) 
-            exit(EXIT_FAILURE);
+        hostptr = gethostbyname(SC_DOMAIN);
+        if(hostptr==NULL) exit(EXIT_FAILURE);
     }
-
-    if(port == -1) {
-        port = DEFAULT_PORT;
-    }
+    if(port == -1) port = SC_PORT;
 
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if(sock ==-1) 
-        exit(EXIT_FAILURE);
-
-    if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) 
-        exit(EXIT_FAILURE);
-
+    if(sock ==-1) exit(EXIT_FAILURE);
+    if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) exit(EXIT_FAILURE);
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_addr.s_addr = ((struct in_addr*)(hostptr->h_addr_list[0]))->s_addr;
     serveraddr.sin_port = htons((u_short)port);
@@ -119,11 +112,7 @@ int main(int argc, char *argv[])
             
             else
                 fprintf(stderr, "Invalid Command\n");
-            
                 
-            
-
-
         }
         if(FD_ISSET(sock, &rfds)) {
             memset(reply,0,strlen(reply));
