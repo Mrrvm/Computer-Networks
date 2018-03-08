@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
     state = idle;
 
     while(1){
+        
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
         maxfd = 0;
