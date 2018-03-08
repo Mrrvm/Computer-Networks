@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
 
                 if(id_stup == 0) {
 
-                    sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)next_addr.sin_addr), next_port);
+                    sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
 
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
