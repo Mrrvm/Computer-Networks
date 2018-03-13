@@ -32,12 +32,13 @@ int main(int argc, char *argv[])
     int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int id_stup, port_stup;
-    int iam_stup = 0;
+    int iam_stup = 0, iam_disp = 0;
     struct hostent *scptr = NULL, *myptr = NULL;
     enum {idle, busy} state;
     fd_set rfds;
     char command[64], pcommand[64];
     char *ip_stup = NULL;
+    char *sc_last_message = NULL;
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     while ((opt = getopt(argc, argv, "n:j:u:t:i:p:")) != -1) {
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
         sc_port = SC_PORT;
     }
 
+    /* Send to SC */
     sc_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if(sc_sock ==-1) exit(EXIT_FAILURE);
     if(memset((void*)&sc_addr, (int)'\0', sizeof(sc_addr))==NULL) exit(EXIT_FAILURE);
@@ -86,7 +88,7 @@ int main(int argc, char *argv[])
     sc_addr.sin_addr.s_addr = ((struct in_addr*)(scptr->h_addr_list[0]))->s_addr;
     sc_addr.sin_port = htons((u_short)sc_port);
     sc_addrlen = sizeof(sc_addr);
-
+    /* Receive from Client*/
     cli_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if(cli_sock ==-1) exit(EXIT_FAILURE);
     if(memset((void*)&cli_addr, (int)'\0', sizeof(cli_addr))==NULL) exit(EXIT_FAILURE);
@@ -95,7 +97,7 @@ int main(int argc, char *argv[])
     cli_addr.sin_port = htons((u_short)cli_port);
     cli_addrlen = sizeof(cli_addr);
     bind(cli_sock, (struct sockaddr*)&cli_addr, cli_addrlen);
-
+    /* Receive from prev*/
     prev_sock = socket(AF_INET, SOCK_STREAM, 0);
     if(prev_sock ==-1) exit(EXIT_FAILURE);
     if(memset((void*)&my_addr, (int)'\0', sizeof(my_addr))==NULL) exit(EXIT_FAILURE);
@@ -105,15 +107,7 @@ int main(int argc, char *argv[])
     my_addrlen = sizeof(my_addr);
     bind(prev_sock, (struct sockaddr*)&my_addr, my_addrlen);
     listen(my_addr, 5);
-
-    next_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if(next_sock ==-1) exit(EXIT_FAILURE);
-    if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
-    next_addr.sin_family = AF_INET;
-    next_addr.sin_addr.s_addr = ((struct in_addr*)(nextptr->h_addr_list[0]))->s_addr;
-    next_addr.sin_port = htons((u_short)next_port);
-    next_addrlen = sizeof(next_addr);
-
+    
     state = idle;
 
     while(1){
@@ -129,6 +123,8 @@ int main(int argc, char *argv[])
         counter = select(maxfd+1, &rfds, (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         if(counter <= 0) exit(EXIT_FAILURE);
 
+        /****************************************************/
+        /* Talk to terminal */
         if(FD_ISSET(0, &rfds)){
             fgets(command, 64, stdin);
             state = busy;
@@ -142,34 +138,55 @@ int main(int argc, char *argv[])
 
                 if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                     exit(EXIT_FAILURE);
+
+                sc_last_message = GET_START;
             }
 
  
         }
+
+        /****************************************************/
+        /* Talk to SC */
         if(FD_ISSET(sc_sock, &rfds)) {
             memset(reply,0,strlen(reply));
 
             if(recvfrom(sc_sock, reply, sizeof(reply), 0, (struct sockaddr*)&serveraddr, &sc_addrlen)==-1)
                 exit(EXIT_FAILURE);
-
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "OK") != NULL){
 
                 sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%[^\';']%d", id, id_stup, ip_stup, port_stup);
 
-                if(id_stup == 0) {
+                /* Becomes startup server */
+                if(id_stup == 0 && strcmp(sc_last_message, GET_START) == 0) {
 
                     sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
-
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
 
-                    iam_stup = 1;
+                    sc_last_message = SET_START;
                 }
-                else {
+                /* Connect to startup server*/
+               /* else {
+                    next_sock = socket(AF_INET, SOCK_STREAM, 0);
+                    if(next_sock == -1) exit(EXIT_FAILURE);
+                    if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
+                    next_addr.sin_family = AF_INET;
+                    next_addr.sin_addr.s_addr = ((struct in_addr*)(nextptr->h_addr_list[0]))->s_addr;
+                    next_addr.sin_port = htons((u_short)next_port);
+                    next_addrlen = sizeof(next_addr);
+                    if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))
+                        exit(EXIT_FAILURE);
+                }*/
 
+                /* Acknowledges itself as startup*/
+                if(id_stup = 0 && strcmp(sc_last_message, SET_START)) {
+                    iam_stup = 1;
 
+                     sprintf(pcommand, "%s %d;%d;%s;%d", SET_DS, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+                    if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
+                        exit(EXIT_FAILURE);
 
                 }
 
