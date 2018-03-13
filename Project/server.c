@@ -17,6 +17,7 @@
 #define service 26
 #define GET_START "GET_START"
 #define SET_START "SET_START"
+#define SET_DS "SET_DS"
 
 void show_usage(char *exe_name) {
     fprintf(stderr, "Usage: %s –n id –j ip -u upt –t tpt [-i csip] [-p cspt]\n", exe_name);
@@ -27,16 +28,18 @@ void show_usage(char *exe_name) {
 int main(int argc, char *argv[])
 {
     int opt;
-    int id = -1;
+    char *id = NULL;
+    int counter, maxfd, x;
     int my_port = -1, cli_port = -1, next_port = -1, sc_port = -1;
     int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
-    int id_stup, port_stup;
+    char *id_stup = NULL; 
+    char *port_stup = NULL;
     int iam_stup = 0, iam_disp = 0;
     struct hostent *scptr = NULL, *myptr = NULL;
     enum {idle, busy, busy2} state;
     fd_set rfds;
-    char command[64], pcommand[64];
+    char command[64], pcommand[64], reply[64];
     char *ip_stup = NULL;
     char *sc_last_message = NULL;
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
@@ -44,7 +47,7 @@ int main(int argc, char *argv[])
     while ((opt = getopt(argc, argv, "n:j:u:t:i:p:")) != -1) {
         switch (opt) {
             case 'n':
-                id = atoi(optarg);
+                id = optarg;
                 break;
             case 'j':
                 myptr = gethostbyname(optarg);
@@ -66,7 +69,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(id == -1) show_usage(argv[0]);
+    if(id == NULL) show_usage(argv[0]);
     if(myptr == NULL) show_usage(argv[0]);
     if(cli_port == -1) show_usage(argv[0]);
     if(next_port == -1) show_usage(argv[0]);
@@ -106,7 +109,7 @@ int main(int argc, char *argv[])
     my_addr.sin_port = htons((u_short)my_port);
     my_addrlen = sizeof(my_addr);
     bind(prev_sock, (struct sockaddr*)&my_addr, my_addrlen);
-    listen(my_addr, 5);
+    listen(prev_sock, 5);
     
     state = idle;
 
@@ -130,7 +133,7 @@ int main(int argc, char *argv[])
                 state = busy;
                 memset(reply,0,strlen(reply));
                 sscanf(command, "%*[^\' '] %d", &x);
-                sprintf(reply, "%s %d;%d", GET_START, x, id);
+                sprintf(reply, "%s %d;%s", GET_START, x, id);
 
                 fprintf(stderr, "Sending message: %s\n", reply);
 
@@ -156,12 +159,12 @@ int main(int argc, char *argv[])
             if(strstr(reply, "OK") != NULL){
                 state = busy2;
 
-                sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%[^\';']%d", id, id_stup, ip_stup, port_stup);
+                sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%[^\';']%s", id, id_stup, ip_stup, port_stup);
 
                 /* Becomes startup server */
-                if(id_stup == 0 && strcmp(sc_last_message, GET_START) == 0) {
+                if(id_stup == "0" && strcmp(sc_last_message, GET_START) == 0) {
 
-                    sprintf(pcommand, "%s %d;%d;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+                    sprintf(pcommand, "%s %d;%s;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
 
@@ -181,10 +184,10 @@ int main(int argc, char *argv[])
                 }*/
 
                 /* Acknowledges itself as startup*/
-                if(id_stup = 0 && strcmp(sc_last_message, SET_START)) {
+                if(id_stup == "0"&& strcmp(sc_last_message, SET_START)) {
                     iam_stup = 1;
 
-                     sprintf(pcommand, "%s %d;%d;%s;%d", SET_DS, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+                     sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
 
@@ -202,7 +205,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
-                sscanf(reply, "%*[^\' '] %d", pcommand);
+                sscanf(reply, "%*[^\' '] %s", pcommand);
                 sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
 
                 if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
@@ -213,7 +216,6 @@ int main(int argc, char *argv[])
 
     }  
 
-    close(sock);
     exit(EXIT_SUCCESS);
 
 }
