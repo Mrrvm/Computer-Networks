@@ -202,11 +202,11 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
-            sscanf(reply, "%*[^\' '] %d", pcommand);
-            sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+                sscanf(reply, "%*[^\' '] %d", pcommand);
+                sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
 
-            if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
-                exit(EXIT_FAILURE);
+                if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
+                    exit(EXIT_FAILURE);
             }
 
         }
