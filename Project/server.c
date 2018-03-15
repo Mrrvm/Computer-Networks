@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     if(id == NULL) show_usage(argv[0]);
     if(myptr == NULL) show_usage(argv[0]);
     if(cli_port == -1) show_usage(argv[0]);
-    if(next_port == -1) show_usage(argv[0]);
+    if(my_port == -1) show_usage(argv[0]);
 
     if(scptr == NULL) {
         scptr = gethostbyname(SC_DOMAIN);
@@ -165,6 +165,8 @@ int main(int argc, char *argv[])
                 if(id_stup == "0" && strcmp(sc_last_message, GET_START) == 0) {
 
                     sprintf(pcommand, "%s %d;%s;%s;%d", SET_START, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+
+                    fprintf(stderr, "Sending message: %s\n", pcommand);
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
 
@@ -187,7 +189,9 @@ int main(int argc, char *argv[])
                 if(id_stup == "0"&& strcmp(sc_last_message, SET_START)) {
                     iam_stup = 1;
 
-                     sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+                    sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, inet_ntoa((struct in_addr)my_addr.sin_addr), my_port);
+
+                    fprintf(stderr, "Sending message: %s\n", pcommand);
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
                         exit(EXIT_FAILURE);
 
@@ -207,6 +211,8 @@ int main(int argc, char *argv[])
             if(strstr(reply, "MY_SERVICE") != NULL){
                 sscanf(reply, "%*[^\' '] %s", pcommand);
                 sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+
+                fprintf(stderr, "Sending message: %s\n", pcommand);
 
                 if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
                     exit(EXIT_FAILURE);
