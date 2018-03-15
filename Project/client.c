@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     int in_service = 0;
     int x;
     int maxfd, counter;
-    struct hostent *hostptr = NULL;
+    struct hostent *hostptr = NULL, *ipp = NULL;
     struct sockaddr_in serveraddr;
     fd_set rfds;
     enum {idle, busy} state;
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
             fgets(command, 64, stdin);
             state = busy;
 
-            if(strstr(command, "request_service") != NULL && in_service == 0){
+            if(strstr(command, "rs") != NULL && in_service == 0){
                 memset(reply,0,strlen(reply));
                 sscanf(command, "%*[^\' '] %d", &x);
                 sprintf(reply, "%s %d", GET_DS_SERVER, x);
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
                 close(sock);
                 exit(EXIT_SUCCESS);
             }   
-            else if(strstr(command, "terminate_service") != NULL){
+            else if(strstr(command, "ts") != NULL){
                 if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
             }
@@ -126,13 +126,17 @@ int main(int argc, char *argv[])
             if(strstr(reply, "OK") != NULL){
 
                 sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%s", id, ip, upt);
+                ipp = gethostbyname(ip);
 
                 if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) exit(EXIT_FAILURE);
                 serveraddr.sin_family = AF_INET;
-                inet_aton(ip, &serveraddr.sin_addr);
+                serveraddr.sin_addr.s_addr = ((struct in_addr*)(ipp->h_addr_list[0]))->s_addr;
                 serveraddr.sin_port = htons((u_short)atoi(upt));
                 addrlen = sizeof(serveraddr);
 
+                printf("%d\n", (u_short)atoi(upt));
+
+                fprintf(stderr, "Sending message: %s\n", MY_SERVICE_ON);
                 if(sendto(sock, MY_SERVICE_ON, strlen(MY_SERVICE_ON)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
 
