@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     fd_set rfds;
     char *id = NULL;
     char my_ip[64] = {0}, sc_ip[64] = {0};
-    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0};
+    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, onoff[64] = {0}, ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0};
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     sprintf(sc_ip, "%s", SC_IP);
@@ -263,8 +263,8 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
-                sscanf(reply, "%*[^\' '] %s", pcommand);
-                sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+                sscanf(reply, "%*[^\' '] %s", onoff);
+                sprintf(pcommand, "YOUR_SERVICE %s", onoff);
 
                 fprintf(stderr, "Sending message: %s\n", pcommand);
 
