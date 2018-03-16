@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     int opt;
     int port = -1;
     int sock;
-    int addrlen;
+    unsigned int addrlen;
     int in_service = 0;
     int x;
     int maxfd, counter;

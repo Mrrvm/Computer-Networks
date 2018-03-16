@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     int counter, maxfd, x;
     int sc_next_message = 0;
     int my_port = -1, cli_port = -1, next_port = -1, sc_port = SC_PORT;
-    int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
+    unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
     struct hostent *ptr = NULL;
