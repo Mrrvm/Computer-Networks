@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 
 #define PORT 59000
+#define MY_RCI_GROUP 26
 
 int main(int argc, char const *argv[]) {
 
@@ -26,14 +27,14 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in serveraddr;
 	char id[8] = {0}, buffer[80] = {0}, service[8] = {0}, id_stup[8] = {0};
 
-    printf("Service: (press Enter to ignore)\n");
+    printf("Service: (press Enter to ignore) ");
     fgets(service, 8, stdin);
     if(strcmp(service, "\n") == 0) {
-        sprintf(service, "%s", "26");
+        sprintf(service, "%s", MY_RCI_GROUP);
         sprintf(id, "%s", "1");
     }
     else {
-        printf("ID:\n");
+        printf("ID: ");
         fgets(id, 8, stdin);
     }
 

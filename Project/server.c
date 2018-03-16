@@ -12,6 +12,7 @@
 #include <math.h>
 #include <ifaddrs.h>
 #include <time.h>
+#include <ctype.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
@@ -87,17 +88,33 @@ int main(int argc, char *argv[])
                 sprintf(my_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'u':
-                cli_port = atoi(optarg);
+                if(isdigit(*optarg)) {
+                    cli_port = atoi(optarg);
+                }
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 't':
-                my_port = atoi(optarg);
+                if(isdigit(*optarg))
+                    my_port = atoi(optarg);
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'i':
                 ptr = gethostbyname(optarg);
                 sprintf(sc_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'p':
-                sc_port = atoi(optarg);
+                if(isdigit(*optarg))
+                    sc_port = atoi(optarg);
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             default: /* '?' */
                 show_usage(argv[0]);

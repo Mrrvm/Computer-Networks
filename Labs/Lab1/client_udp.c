@@ -56,8 +56,6 @@ int main(int argc, char const *argv[])
     	if(sendto(fd, msg, strlen(msg)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
     		exit(4);
 
-
-
     	addrlen = sizeof(serveraddr);
 
     	if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
