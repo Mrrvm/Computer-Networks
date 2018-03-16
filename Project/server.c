@@ -13,7 +13,7 @@
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
-#define SC_DOMAIN "tejo.tecnico.ulisboa.pt"
+#define SC_IP "193.136.138.142"
 #define service 26
 #define GET_START "GET_START"
 #define SET_START "SET_START"
@@ -31,18 +31,21 @@ void show_usage(char *exe_name) {
 int main(int argc, char *argv[])
 {
     int opt;
-    char *id = NULL, *my_ip = NULL;
     int counter, maxfd, x;
-    int my_port = -1, cli_port = -1, next_port = -1, sc_port = -1;
+    int sc_next_message = 0;
+    int my_port = -1, cli_port = -1, next_port = -1, sc_port = SC_PORT;
     int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
-    struct hostent *scptr = NULL, *myptr = NULL;
+    struct hostent *ptr = NULL;
     enum {idle, available} state;
     fd_set rfds;
+    char *id = NULL;
+    char my_ip[64], sc_ip[64];
     char command[64], pcommand[64], reply[64], ip_stup[64], id_stup[64], port_stup[64];
-    int sc_next_message = 0;
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
+
+    sprintf(sc_ip, "%s", SC_IP);
 
     while ((opt = getopt(argc, argv, "n:j:u:t:i:p:")) != -1) {
         switch (opt) {
@@ -50,7 +53,8 @@ int main(int argc, char *argv[])
                 id = optarg;
                 break;
             case 'j':
-                myptr = gethostbyname(optarg);
+                ptr = gethostbyname(optarg);
+                sprintf(my_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'u':
                 cli_port = atoi(optarg);
@@ -59,7 +63,8 @@ int main(int argc, char *argv[])
                 my_port = atoi(optarg);
                 break;
             case 'i':
-                scptr = gethostbyname(optarg);
+                ptr = gethostbyname(optarg);
+                sprintf(sc_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'p':
                 sc_port = atoi(optarg);
@@ -68,27 +73,18 @@ int main(int argc, char *argv[])
                 show_usage(argv[0]);
         }
     }
-
+    
     if(id == NULL) show_usage(argv[0]);
-    if(myptr == NULL) show_usage(argv[0]);
+    if(my_ip == NULL) show_usage(argv[0]);
     if(cli_port == -1) show_usage(argv[0]);
     if(my_port == -1) show_usage(argv[0]);
-
-    if(scptr == NULL) {
-        scptr = gethostbyname(SC_DOMAIN);
-        if(scptr ==NULL) 
-            exit(EXIT_FAILURE);
-    }
-    if(sc_port == -1) {
-        sc_port = SC_PORT;
-    }
 
     /* Send to SC */
     sc_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if(sc_sock ==-1) exit(EXIT_FAILURE);
     if(memset((void*)&sc_addr, (int)'\0', sizeof(sc_addr))==NULL) exit(EXIT_FAILURE);
     sc_addr.sin_family = AF_INET;
-    sc_addr.sin_addr.s_addr = ((struct in_addr*)(scptr->h_addr_list[0]))->s_addr;
+    sc_addr.sin_addr.s_addr = ((struct in_addr*)sc_ip)->s_addr;
     sc_addr.sin_port = htons((u_short)sc_port);
     sc_addrlen = sizeof(sc_addr);
     /* Receive from Client*/
@@ -112,7 +108,6 @@ int main(int argc, char *argv[])
     listen(prev_sock, 5);
     
     state = idle;
-
     while(1){
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
@@ -160,7 +155,7 @@ int main(int argc, char *argv[])
 
             if(recvfrom(sc_sock, reply, sizeof(reply), 0, (struct sockaddr*)&sc_addr, &sc_addrlen)==-1)
                 exit(EXIT_FAILURE);
-            fprintf(stderr, "Received: %s\n", reply);
+            fprintf(stderr, "Received: %s\0\n", reply);
 
             if(strstr(reply, "OK") != NULL){
 
@@ -170,7 +165,7 @@ int main(int argc, char *argv[])
                 if(sc_next_message == GETTING_START) {
                     if(strcmp(id_stup, "0") == 0){
 
-                        sprintf(pcommand, "%s %d;%s;%s;%d", SET_START, x, id, inet_ntoa(*(struct in_addr*)myptr->h_addr_list[0]), my_port);
+                        sprintf(pcommand, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
 
                         fprintf(stderr, "Sending message: %s\n", pcommand);
                         if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
@@ -178,25 +173,24 @@ int main(int argc, char *argv[])
 
                         sc_next_message = SETTING_DS;
                     }
-
+                    /* Connect to startup server*/
+                    /* else {
+                        next_sock = socket(AF_INET, SOCK_STREAM, 0);
+                        if(next_sock == -1) exit(EXIT_FAILURE);
+                        if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
+                        next_addr.sin_family = AF_INET;
+                        next_addr.sin_addr.s_addr = ((struct in_addr*)(nextptr->h_addr_list[0]))->s_addr;
+                        next_addr.sin_port = htons((u_short)next_port);
+                        next_addrlen = sizeof(next_addr);
+                        if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))
+                            exit(EXIT_FAILURE);
+                    }*/
                 }
-                /* Connect to startup server*/
-               /* else {
-                    next_sock = socket(AF_INET, SOCK_STREAM, 0);
-                    if(next_sock == -1) exit(EXIT_FAILURE);
-                    if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
-                    next_addr.sin_family = AF_INET;
-                    next_addr.sin_addr.s_addr = ((struct in_addr*)(nextptr->h_addr_list[0]))->s_addr;
-                    next_addr.sin_port = htons((u_short)next_port);
-                    next_addrlen = sizeof(next_addr);
-                    if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))
-                        exit(EXIT_FAILURE);
-                }*/
 
                 /* Acknowledges itself as startup*/
                 else if(sc_next_message == SETTING_DS) {
 
-                    sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, inet_ntoa(*(struct in_addr*)myptr->h_addr_list[0]), my_port);
+                    sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
 
                     fprintf(stderr, "Sending message: %s\n", pcommand);
                     if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
@@ -208,11 +202,14 @@ int main(int argc, char *argv[])
 
             }
         }
+
+        /****************************************************/
+        /* Talk to client */
         if(FD_ISSET(cli_sock, &rfds)) {
             memset(reply,0,strlen(reply));
             memset(pcommand,0,strlen(pcommand));
 
-            if(recvfrom(cli_sock, reply, sizeof(reply), 0, (struct sockaddr*)&cli_sock, &cli_addrlen)==-1)
+            if(recvfrom(cli_sock, reply, sizeof(reply), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1)
                 exit(EXIT_FAILURE);
 
             fprintf(stderr, "Received: %s\n", reply);
