@@ -102,12 +102,16 @@ int main(int argc, char *argv[])
                 
             }
             else if(strstr(command, "exit") != NULL){
+                fprintf(stderr, "Sending message: %s\n", MY_SERVICE_OFF);
+
                 if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
                 close(sock);
                 exit(EXIT_SUCCESS);
             }   
             else if(strstr(command, "ts") != NULL){
+                fprintf(stderr, "Sending message: %s\n", MY_SERVICE_OFF);
+
                 if(sendto(sock, MY_SERVICE_OFF, strlen(MY_SERVICE_OFF)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
             }
@@ -149,6 +153,8 @@ int main(int argc, char *argv[])
                     serveraddr.sin_addr.s_addr = ((struct in_addr*)(hostptr->h_addr_list[0]))->s_addr;
                     serveraddr.sin_port = htons((u_short)port);
                     addrlen = sizeof(serveraddr);
+
+                    
 
                     in_service = 0;
                 }

@@ -1,5 +1,4 @@
 #include <unistd.h>
-#include <linux/if_link.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdlib.h>
@@ -10,7 +9,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <math.h>
-#include <ifaddrs.h>
 #include <time.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
@@ -29,34 +27,6 @@ void show_usage(char *exe_name) {
     exit(EXIT_FAILURE);
 }
 
-void getmyip(char my_ip[]) {
-    
-    struct ifaddrs *ifaddr, *ifa;
-    int family, s, n = 0;
-    char host[64];
-
-    if(getifaddrs(&ifaddr) == -1) {exit(EXIT_FAILURE);}
-
-    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if(n == 2) break;
-        if(ifa->ifa_addr == NULL)
-            continue;
-
-        family = ifa->ifa_addr->sa_family;
-
-        if(family == AF_INET) {
-            n++;
-            s = getnameinfo(ifa->ifa_addr,
-               sizeof(struct sockaddr_in),
-               host, NI_MAXHOST,
-               NULL, 0, NI_NUMERICHOST);
-            if(s != 0) {exit(EXIT_FAILURE);}
-       } 
-   }
-
-   freeifaddrs(ifaddr);
-   strcpy(my_ip, host);
-}
 
 int main(int argc, char *argv[])
 {
@@ -71,8 +41,8 @@ int main(int argc, char *argv[])
     enum {idle, available} state;
     fd_set rfds;
     char *id = NULL;
-    char my_ip[64] = {0}, sc_ip[64] = {0};
-    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0};
+    char my_ip[64], sc_ip[64];
+    char command[64], pcommand[64], reply[64], ip_stup[64], id_stup[64], port_stup[64], onoff[64];
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     sprintf(sc_ip, "%s", SC_IP);
@@ -103,12 +73,13 @@ int main(int argc, char *argv[])
                 show_usage(argv[0]);
         }
     }
+
+    printf("%s\n", sc_ip);
     
     if(id == NULL) show_usage(argv[0]);
     if(my_ip == NULL) show_usage(argv[0]);
     if(cli_port == -1) show_usage(argv[0]);
     if(my_port == -1) show_usage(argv[0]);
-    if(strcmp(my_ip, "127.0.0.1") == 0) {getmyip(my_ip);}
 
     /* Send to SC */
     sc_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -239,6 +210,7 @@ int main(int argc, char *argv[])
         if(FD_ISSET(cli_sock, &rfds)) {
             memset(reply,0,strlen(reply));
             memset(pcommand,0,strlen(pcommand));
+            memset(onoff,0,strlen(onoff));
 
             if(recvfrom(cli_sock, reply, sizeof(reply), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1)
                 exit(EXIT_FAILURE);
@@ -246,8 +218,8 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
-                sscanf(reply, "%*[^\' '] %s", pcommand);
-                sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+                sscanf(reply, "%*[^\' '] %s", onoff );
+                sprintf(pcommand, "YOUR_SERVICE %s", onoff);
 
                 fprintf(stderr, "Sending message: %s\n", pcommand);
 
