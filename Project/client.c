@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in serveraddr;
     fd_set rfds;
     enum {idle, busy} state;
-    char command[64], reply[64], id[64], ip[64], upt[64];
+    char command[64] = {0}, reply[64] = {0}, id[64] = {0}, ip[64] = {0}, upt[64] = {0};
 
     while ((opt = getopt(argc, argv, "i:p:")) != -1) {
         switch (opt) {

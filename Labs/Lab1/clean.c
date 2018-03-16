@@ -38,7 +38,6 @@ int main(int argc, char const *argv[])
     	exit(2);
     }
 
-
     if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL)
     	exit(3);
 
@@ -49,13 +48,19 @@ int main(int argc, char const *argv[])
 
     addrlen = sizeof(serveraddr);
 
+	if(sendto(fd, "WITHDRAW_START 26;1", strlen("WITHDRAW_START 26;1")+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+		exit(4);
+
+    if(sendto(fd, "WITHDRAW_DS 26;1", strlen("WITHDRAW_DS 26;1")+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+        exit(4);
+
+    if(sendto(fd, "GET_START 26;1", strlen("WITHDRAW_DS 26;1")+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
+        exit(4);
+
+
     while(1){
         memset(buffer,0,strlen(buffer));
-    	fgets (msg, 80, stdin);
-
-    	if(sendto(fd, msg, strlen(msg)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
-    		exit(4);
-
+        fgets (msg, 80, stdin);
 
 
     	addrlen = sizeof(serveraddr);
@@ -63,7 +68,7 @@ int main(int argc, char const *argv[])
     	if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
     		exit(5);
 
-    	printf("%s\n", buffer);
+    	
 
     }
     close(fd);
