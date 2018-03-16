@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <math.h>
 #include <time.h>
+#include <ctype.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
@@ -34,7 +35,7 @@ int main(int argc, char *argv[])
     int counter, maxfd, x;
     int sc_next_message = 0;
     int my_port = -1, cli_port = -1, next_port = -1, sc_port = SC_PORT;
-    int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
+    unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
     struct hostent *ptr = NULL;
@@ -57,17 +58,33 @@ int main(int argc, char *argv[])
                 sprintf(my_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'u':
-                cli_port = atoi(optarg);
+                if(isdigit(*optarg)) {
+                    cli_port = atoi(optarg);
+                }
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 't':
-                my_port = atoi(optarg);
+                if(isdigit(*optarg))
+                    my_port = atoi(optarg);
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'i':
                 ptr = gethostbyname(optarg);
                 sprintf(sc_ip, "%s", inet_ntoa(*(struct in_addr*)ptr->h_addr_list[0]));
                 break;
             case 'p':
-                sc_port = atoi(optarg);
+                if(isdigit(*optarg))
+                    sc_port = atoi(optarg);
+                else {
+                    printf("Error: -u argument must me an integer\n");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             default: /* '?' */
                 show_usage(argv[0]);
