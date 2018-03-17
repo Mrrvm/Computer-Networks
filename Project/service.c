@@ -27,6 +27,11 @@
 #define GETTING_START 1
 #define SETTING_DS 2
 
+void spawn_error(char *error) {
+    fprintf(stderr, "Error: %s", error);
+    exit(EXIT_FAILURE);
+}
+
 void show_usage(char *exe_name) {
     fprintf(stderr, "Usage: %s –n id –j ip -u upt –t tpt [-i csip] [-p cspt]\n", exe_name);
     exit(EXIT_FAILURE);
@@ -79,10 +84,11 @@ int main(int argc, char *argv[]) {
     enum {idle, available} state;
     fd_set rfds;
     char *id = NULL;
-    char my_ip[64] = {0}, sc_ip[64] = {0};
-    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, 
-            ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0},
-            aux[8] = {0};
+    char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, stup_ip[64] = {0};
+    char command[64] = {0}, reply[64] = {0};
+    char stup_id[4] = {0}, prev_id[4];
+    char stup_port[8] = {0}, prev_port[8] = {0};
+    char aux[8] = {0};
 
     sprintf(sc_ip, "%s", SC_IP);
 
@@ -100,18 +106,15 @@ int main(int argc, char *argv[]) {
                 if(isdigit(*optarg)) {
                     cli_port = atoi(optarg);
                 }
-                else {
-                    printf("Error: -u argument must me an integer\n");
-                    exit(EXIT_FAILURE);
-                }
+                else 
+                    spawn_error("-u argument must me an integer\n");
+                
                 break;
             case 't':
                 if(isdigit(*optarg))
                     my_port = atoi(optarg);
-                else {
-                    printf("Error: -u argument must me an integer\n");
-                    exit(EXIT_FAILURE);
-                }
+                else 
+                    spawn_error("-u argument must me an integer\n");
                 break;
             case 'i':
                 ptr = gethostbyname(optarg);
@@ -120,10 +123,8 @@ int main(int argc, char *argv[]) {
             case 'p':
                 if(isdigit(*optarg))
                     sc_port = atoi(optarg);
-                else {
-                    printf("Error: -u argument must me an integer\n");
-                    exit(EXIT_FAILURE);
-                }
+                else 
+                    spawn_error("-u argument must me an integer\n");
                 break;
             default: /* '?' */
                 show_usage(argv[0]);
@@ -190,14 +191,14 @@ int main(int argc, char *argv[]) {
 
             if(strstr(command, "join") != NULL){
                 state = available;
-                memset(reply,0,strlen(reply));
-                sscanf(command, "%*[^\' '] %d", &x);
-                sprintf(reply, "%s %d;%s", GET_START, x, id);
 
+                sscanf(command, "%*[^\' '] %d", &x);
+                memset(reply,0,strlen(reply));
+
+                sprintf(reply, "%s %d;%s", GET_START, x, id);
                 fprintf(stderr, "Sending message: %s\n", reply);
 
-                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
-                    exit(EXIT_FAILURE);
+                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
 
                 sc_next_message = GETTING_START;
             }
@@ -208,26 +209,24 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Talk to SC */
         if(FD_ISSET(sc_sock, &rfds)) {
-            memset(reply,0,strlen(reply));
-            memset(pcommand,0,strlen(pcommand));
+            
+            memset(command,0,strlen(command));
 
-            if(recvfrom(sc_sock, reply, sizeof(reply), 0, (struct sockaddr*)&sc_addr, &sc_addrlen)==-1)
-                exit(EXIT_FAILURE);
-            fprintf(stderr, "Received: %s\n", reply);
+            if(recvfrom(sc_sock, command, sizeof(command), 0, (struct sockaddr*)&sc_addr, &sc_addrlen) == -1) spawn_error("Could not receive from SC\n");
+            fprintf(stderr, "Received: %s\n", command);
 
-            if(strstr(reply, "OK") != NULL){
+            if(strstr(command, "OK") != NULL){
 
-                sscanf(reply, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';']%s", id_stup, ip_stup, port_stup);
+                sscanf(command, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';'];%s", stup_id, stup_ip, stup_port);
 
                 /* Becomes startup server */
                 if(sc_next_message == GETTING_START) {
-                    if(strcmp(id_stup, "0") == 0){
+                    if(strcmp(stup_id, "0") == 0){
+                        memset(reply,0,strlen(reply));
+                        sprintf(reply, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
 
-                        sprintf(pcommand, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
-
-                        fprintf(stderr, "Sending message: %s\n", pcommand);
-                        if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
-                            exit(EXIT_FAILURE);
+                        fprintf(stderr, "Sending message: %s\n", reply);
+                        if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Could not receive from SC\n");
 
                         sc_next_message = SETTING_DS;
                     }
@@ -237,22 +236,22 @@ int main(int argc, char *argv[]) {
                         if(next_sock == -1) exit(EXIT_FAILURE);
                         if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
                         next_addr.sin_family = AF_INET;
-                        next_addr.sin_addr.s_addr = inet_addr(ip_stup);
-                        next_addr.sin_port = htons((u_short)atoi(port_stup));
+                        next_addr.sin_addr.s_addr = inet_addr(stup_ip);
+                        next_addr.sin_port = htons((u_short)atoi(stup_port));
                         next_addrlen = sizeof(next_addr);
-                        if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))) {exit(EXIT_FAILURE);}
-                        printf("Connecting to %s:%s\n", ip_stup, port_stup);
+                        printf("Connecting to %s:%s\n", stup_ip, stup_port);
+                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) != -1) spawn_error("Could not connect to startup server\n");
                     }
                 }
 
                 /* Acknowledges itself as startup*/
                 else if(sc_next_message == SETTING_DS) {
 
-                    sprintf(pcommand, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
+                    memset(reply,0,strlen(reply));
+                    sprintf(reply, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
 
-                    fprintf(stderr, "Sending message: %s\n", pcommand);
-                    if(sendto(sc_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1)
-                        exit(EXIT_FAILURE);
+                    fprintf(stderr, "Sending message: %s\n", reply);
+                    if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
 
                     sc_next_message = NOTHING;
 
@@ -264,25 +263,41 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Talk to client */
         if(FD_ISSET(cli_sock, &rfds)) {
-            memset(reply,0,strlen(reply));
-            memset(pcommand,0,strlen(pcommand));
 
-            if(recvfrom(cli_sock, reply, sizeof(reply), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1)
-                exit(EXIT_FAILURE);
+            memset(command, 0, strlen(command));
+            if(recvfrom(cli_sock, command, sizeof(command), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1) spawn_error("Could not receive from client\n");
+            fprintf(stderr, "Received: %s\n", command);
 
-            fprintf(stderr, "Received: %s\n", reply);
+            if(strstr(command, "MY_SERVICE") != NULL){
 
-            if(strstr(reply, "MY_SERVICE") != NULL){
+                sscanf(command, "%*[^\' '] %s", aux);
+                sprintf(reply, "YOUR_SERVICE %s", aux);
 
-                sscanf(reply, "%*[^\' '] %s", aux);
-                sprintf(pcommand, "YOUR_SERVICE %s", aux);
-
-                fprintf(stderr, "Sending message: %s\n", pcommand);
-
-                if(sendto(cli_sock, pcommand, strlen(pcommand)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen)==-1)
-                    exit(EXIT_FAILURE);
+                memset(reply, 0, strlen(reply));
+                fprintf(stderr, "Sending message: %s\n", reply);
+                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
             }
 
+        }
+
+        /****************************************************/
+        /* Receive connections from previous servers */
+        if(FD_ISSET(prev_sock, &rfds)) {
+            new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
+            if(new_prev_sock == -1) spawn_error("Could not accept socket\n");
+        }
+
+        /****************************************************/
+        /* Talk to previous server */
+        if(FD_ISSET(new_prev_sock, &rfds)) {
+            memset(command, 0, strlen(command));
+            if(read(new_prev_sock, command, strlen(command)+1) == -1) spawn_error("Could not read from previous server\n");
+            fprintf(stderr, "Received: %s\n", command);
+
+            if(strstr(command, "NEW") != NULL){
+                sscanf(command, "%*[^\' '] %*[^\';'];%s", prev_id, prev_ip, prev_port);
+                printf("%s\n", prev_port);
+            }
         }
 
     }  
