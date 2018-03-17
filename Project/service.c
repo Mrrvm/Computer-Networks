@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     int opt;
     int counter, maxfd, x;
     int sc_next_message = 0;
-    int my_port = -1, cli_port = -1, next_port = -1, sc_port = SC_PORT;
+    int my_port = -1, cli_port = -1, sc_port = SC_PORT, stup_port, prev_port;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
     unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
@@ -87,7 +87,6 @@ int main(int argc, char *argv[]) {
     char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, stup_ip[64] = {0};
     char command[64] = {0}, reply[64] = {0};
     char stup_id[4] = {0}, prev_id[4];
-    char stup_port[8] = {0}, prev_port[8] = {0};
     char aux[8] = {0};
 
     sprintf(sc_ip, "%s", SC_IP);
@@ -183,6 +182,9 @@ int main(int argc, char *argv[]) {
 
         counter = select(maxfd+1, &rfds, (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         if(counter <= 0) exit(EXIT_FAILURE);
+        
+        memset(command,0,strlen(reply));
+        memset(reply,0,strlen(reply));
 
         /****************************************************/
         /* Talk to terminal */
@@ -193,7 +195,6 @@ int main(int argc, char *argv[]) {
                 state = available;
 
                 sscanf(command, "%*[^\' '] %d", &x);
-                memset(reply,0,strlen(reply));
 
                 sprintf(reply, "%s %d;%s", GET_START, x, id);
                 fprintf(stderr, "Sending message: %s\n", reply);
@@ -209,20 +210,18 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Talk to SC */
         if(FD_ISSET(sc_sock, &rfds)) {
-            
-            memset(command,0,strlen(command));
 
             if(recvfrom(sc_sock, command, sizeof(command), 0, (struct sockaddr*)&sc_addr, &sc_addrlen) == -1) spawn_error("Could not receive from SC\n");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "OK") != NULL){
 
-                sscanf(command, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';'];%s", stup_id, stup_ip, stup_port);
+                sscanf(command, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';'];%d", stup_id, stup_ip, stup_port);
 
                 /* Becomes startup server */
                 if(sc_next_message == GETTING_START) {
                     if(strcmp(stup_id, "0") == 0){
-                        memset(reply,0,strlen(reply));
+       
                         sprintf(reply, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
 
                         fprintf(stderr, "Sending message: %s\n", reply);
@@ -237,9 +236,9 @@ int main(int argc, char *argv[]) {
                         if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
                         next_addr.sin_family = AF_INET;
                         next_addr.sin_addr.s_addr = inet_addr(stup_ip);
-                        next_addr.sin_port = htons((u_short)atoi(stup_port));
+                        next_addr.sin_port = htons((u_short)stup_port);
                         next_addrlen = sizeof(next_addr);
-                        printf("Connecting to %s:%s\n", stup_ip, stup_port);
+                        printf("Connecting to %s:%d\n", stup_ip, stup_port);
                         if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) != -1) spawn_error("Could not connect to startup server\n");
                     }
                 }
@@ -247,7 +246,6 @@ int main(int argc, char *argv[]) {
                 /* Acknowledges itself as startup*/
                 else if(sc_next_message == SETTING_DS) {
 
-                    memset(reply,0,strlen(reply));
                     sprintf(reply, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
 
                     fprintf(stderr, "Sending message: %s\n", reply);
@@ -264,7 +262,6 @@ int main(int argc, char *argv[]) {
         /* Talk to client */
         if(FD_ISSET(cli_sock, &rfds)) {
 
-            memset(command, 0, strlen(command));
             if(recvfrom(cli_sock, command, sizeof(command), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1) spawn_error("Could not receive from client\n");
             fprintf(stderr, "Received: %s\n", command);
 
@@ -273,7 +270,6 @@ int main(int argc, char *argv[]) {
                 sscanf(command, "%*[^\' '] %s", aux);
                 sprintf(reply, "YOUR_SERVICE %s", aux);
 
-                memset(reply, 0, strlen(reply));
                 fprintf(stderr, "Sending message: %s\n", reply);
                 if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
             }
@@ -290,13 +286,13 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Talk to previous server */
         if(FD_ISSET(new_prev_sock, &rfds)) {
-            memset(command, 0, strlen(command));
+            
             if(read(new_prev_sock, command, strlen(command)+1) == -1) spawn_error("Could not read from previous server\n");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "NEW") != NULL){
-                sscanf(command, "%*[^\' '] %*[^\';'];%s", prev_id, prev_ip, prev_port);
-                printf("%s\n", prev_port);
+                sscanf(command, "%*[^\' '] %*[^\';'];%d", prev_id, prev_ip, prev_port);
+                printf("%d\n", prev_port);
             }
         }
 
