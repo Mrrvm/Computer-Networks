@@ -75,13 +75,13 @@ int main(int argc, char *argv[]) {
     int opt;
     int counter, maxfd, x;
     int sc_next_message = 0;
-    int my_port = -1, cli_port = -1, sc_port = SC_PORT, stup_port, prev_port;
+    int my_port = -1, cli_port = -1, stup_port = -1, sc_port = SC_PORT, prev_port = -1;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
     unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     struct hostent *ptr = NULL;
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
-    enum {idle, available} state;
+    enum {idle, available, accepted} state;
     fd_set rfds;
     char *id = NULL;
     char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, stup_ip[64] = {0};
@@ -167,11 +167,12 @@ int main(int argc, char *argv[]) {
     
     state = idle;
     while(1){
+
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
         maxfd = 0;
 
-        if(state == available){
+        if(state == available || state == accepted){
             FD_SET(sc_sock, &rfds);
             FD_SET(prev_sock, &rfds);
             FD_SET(cli_sock, &rfds);
@@ -179,12 +180,16 @@ int main(int argc, char *argv[]) {
             maxfd = max(maxfd, prev_sock);
             maxfd = max(maxfd, cli_sock);
         }
+        if(state == accepted) {
+            FD_SET(new_prev_sock, &rfds);
+            maxfd = max(maxfd, new_prev_sock);
+        }
 
         counter = select(maxfd+1, &rfds, (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         if(counter <= 0) exit(EXIT_FAILURE);
         
-        memset(command,0,strlen(reply));
-        memset(reply,0,strlen(reply));
+        memset(command, 0, strlen(reply));
+        memset(reply, 0, strlen(reply));
 
         /****************************************************/
         /* Talk to terminal */
@@ -200,23 +205,19 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "Sending message: %s\n", reply);
 
                 if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
-
                 sc_next_message = GETTING_START;
             }
-
- 
         }
 
         /****************************************************/
         /* Talk to SC */
         if(FD_ISSET(sc_sock, &rfds)) {
-
             if(recvfrom(sc_sock, command, sizeof(command), 0, (struct sockaddr*)&sc_addr, &sc_addrlen) == -1) spawn_error("Could not receive from SC\n");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "OK") != NULL){
 
-                sscanf(command, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';'];%d", stup_id, stup_ip, stup_port);
+                sscanf(command, "%*[^\' '] %*[^\';'];%[^\';'];%[^\';'];%d", stup_id, stup_ip, &stup_port);
 
                 /* Becomes startup server */
                 if(sc_next_message == GETTING_START) {
@@ -281,20 +282,22 @@ int main(int argc, char *argv[]) {
         if(FD_ISSET(prev_sock, &rfds)) {
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
             if(new_prev_sock == -1) spawn_error("Could not accept socket\n");
+            state = accepted;
         }
 
         /****************************************************/
         /* Talk to previous server */
-        if(FD_ISSET(new_prev_sock, &rfds)) {
+        if(state == accepted && FD_ISSET(new_prev_sock, &rfds)) {
             
             if(read(new_prev_sock, command, strlen(command)+1) == -1) spawn_error("Could not read from previous server\n");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "NEW") != NULL){
-                sscanf(command, "%*[^\' '] %*[^\';'];%d", prev_id, prev_ip, prev_port);
+                sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%d", prev_id, prev_ip, &prev_port);
                 printf("%d\n", prev_port);
             }
         }
+
 
     }  
 
