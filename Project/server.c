@@ -18,6 +18,7 @@
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
 #define SC_IP "193.136.138.142"
+#define LOCALHOST "127.0.0.1"
 #define service 26
 #define GET_START "GET_START"
 #define SET_START "SET_START"
@@ -31,6 +32,7 @@ void show_usage(char *exe_name) {
     exit(EXIT_FAILURE);
 }
 
+// Get real IP from machine
 void getmyip(char my_ip[]) {
     
     struct ifaddrs *ifaddr, *ifa;
@@ -63,16 +65,17 @@ void getmyip(char my_ip[]) {
    strcpy(my_ip, host);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
+
     int opt;
     int counter, maxfd, x;
     int sc_next_message = 0;
     int my_port = -1, cli_port = -1, next_port = -1, sc_port = SC_PORT;
-    unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
     int is_ds = 0, is_stp = 0, is_ring_av = 1;
+    unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     struct hostent *ptr = NULL;
+    struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
     enum {idle, available} state;
     fd_set rfds;
     char *id = NULL;
@@ -80,10 +83,10 @@ int main(int argc, char *argv[])
     char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, 
             ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0},
             aux[8] = {0};
-    struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     sprintf(sc_ip, "%s", SC_IP);
 
+    // Get the right arguments
     while ((opt = getopt(argc, argv, "n:j:u:t:i:p:")) != -1) {
         switch (opt) {
             case 'n':
@@ -127,11 +130,12 @@ int main(int argc, char *argv[])
         }
     }
     
+    // Verify if usage rules are met
     if(id == NULL) show_usage(argv[0]);
     if(my_ip == NULL) show_usage(argv[0]);
     if(cli_port == -1) show_usage(argv[0]);
     if(my_port == -1) show_usage(argv[0]);
-    if(strcmp(my_ip, "127.0.0.1") == 0) {getmyip(my_ip);}
+    if(strcmp(my_ip, LOCALHOST) == 0) {getmyip(my_ip);}
 
     /* Send to SC */
     sc_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -228,17 +232,17 @@ int main(int argc, char *argv[])
                         sc_next_message = SETTING_DS;
                     }
                     /* Connect to startup server*/
-                    /* else {
+                    else {
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
                         if(next_sock == -1) exit(EXIT_FAILURE);
                         if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
                         next_addr.sin_family = AF_INET;
-                        next_addr.sin_addr.s_addr = ((struct in_addr*)(nextptr->h_addr_list[0]))->s_addr;
-                        next_addr.sin_port = htons((u_short)next_port);
+                        next_addr.sin_addr.s_addr = inet_addr(ip_stup);
+                        next_addr.sin_port = htons((u_short)atoi(port_stup));
                         next_addrlen = sizeof(next_addr);
-                        if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))
-                            exit(EXIT_FAILURE);
-                    }*/
+                        if(-1 != connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr))) {exit(EXIT_FAILURE);}
+                        printf("Connecting to %s:%s\n", ip_stup, port_stup);
+                    }
                 }
 
                 /* Acknowledges itself as startup*/
