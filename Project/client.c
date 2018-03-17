@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     int in_service = 0;
     int x;
     int maxfd, counter;
-    struct hostent *hostptr = NULL, *ipp = NULL;
+    struct hostent *hostptr = NULL;
     struct sockaddr_in serveraddr;
     fd_set rfds;
     enum {idle, busy} state;
@@ -98,8 +98,6 @@ int main(int argc, char *argv[])
                 if(sendto(sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                     exit(EXIT_FAILURE);
 
-
-                
             }
             else if(strstr(command, "exit") != NULL){
                 fprintf(stderr, "Sending message: %s\n", MY_SERVICE_OFF);
@@ -120,6 +118,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Invalid Command\n");
                 
         }
+
         if(FD_ISSET(sock, &rfds)) {
             memset(reply,0,strlen(reply));
 
@@ -130,11 +129,10 @@ int main(int argc, char *argv[])
             if(strstr(reply, "OK") != NULL){
 
                 sscanf(reply, "%*[^\' '] %[^\';'];%[^\';'];%s", id, ip, upt);
-                ipp = gethostbyname(ip);
 
                 if(memset((void*)&serveraddr, (int)'\0', sizeof(serveraddr))==NULL) exit(EXIT_FAILURE);
                 serveraddr.sin_family = AF_INET;
-                serveraddr.sin_addr.s_addr = ((struct in_addr*)(ipp->h_addr_list[0]))->s_addr;
+                serveraddr.sin_addr.s_addr = inet_addr(ip);
                 serveraddr.sin_port = htons((u_short)atoi(upt));
                 addrlen = sizeof(serveraddr);
 
@@ -153,8 +151,6 @@ int main(int argc, char *argv[])
                     serveraddr.sin_addr.s_addr = ((struct in_addr*)(hostptr->h_addr_list[0]))->s_addr;
                     serveraddr.sin_port = htons((u_short)port);
                     addrlen = sizeof(serveraddr);
-
-                    
 
                     in_service = 0;
                 }

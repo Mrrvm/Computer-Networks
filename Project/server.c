@@ -13,6 +13,7 @@
 #include <ifaddrs.h>
 #include <time.h>
 #include <ctype.h>
+#include <net/if.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
@@ -33,23 +34,26 @@ void show_usage(char *exe_name) {
 void getmyip(char my_ip[]) {
     
     struct ifaddrs *ifaddr, *ifa;
-    int family, s, n = 0;
+    int family, s;
     char host[64];
 
     if(getifaddrs(&ifaddr) == -1) {exit(EXIT_FAILURE);}
 
     for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if(n == 2) break;
+    
         if(ifa->ifa_addr == NULL)
+            continue;
+
+        if ((strcmp("lo", ifa->ifa_name) == 0) ||
+        !(ifa->ifa_flags & (IFF_RUNNING)))
             continue;
 
         family = ifa->ifa_addr->sa_family;
 
         if(family == AF_INET) {
-            n++;
             s = getnameinfo(ifa->ifa_addr,
                sizeof(struct sockaddr_in),
-               host, NI_MAXHOST,
+               host, 64,
                NULL, 0, NI_NUMERICHOST);
             if(s != 0) {exit(EXIT_FAILURE);}
        } 
@@ -73,7 +77,9 @@ int main(int argc, char *argv[])
     fd_set rfds;
     char *id = NULL;
     char my_ip[64] = {0}, sc_ip[64] = {0};
-    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0};
+    char command[64] = {0}, pcommand[64] = {0}, reply[64] = {0}, 
+            ip_stup[64] = {0}, id_stup[64] = {0}, port_stup[64] = {0},
+            aux[8] = {0};
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
 
     sprintf(sc_ip, "%s", SC_IP);
@@ -263,8 +269,8 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
-                sscanf(reply, "%*[^\' '] %s", pcommand);
-                sprintf(pcommand, "YOUR_SERVICE %s", pcommand);
+                sscanf(reply, "%*[^\' '] %s", aux);
+                sprintf(pcommand, "YOUR_SERVICE %s", aux);
 
                 fprintf(stderr, "Sending message: %s\n", pcommand);
 
