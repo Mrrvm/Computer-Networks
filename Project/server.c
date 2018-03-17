@@ -269,6 +269,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Received: %s\n", reply);
 
             if(strstr(reply, "MY_SERVICE") != NULL){
+
                 sscanf(reply, "%*[^\' '] %s", aux);
                 sprintf(pcommand, "YOUR_SERVICE %s", aux);
 

@@ -136,8 +136,6 @@ int main(int argc, char *argv[])
                 serveraddr.sin_port = htons((u_short)atoi(upt));
                 addrlen = sizeof(serveraddr);
 
-                printf("%d\n", (u_short)atoi(upt));
-
                 fprintf(stderr, "Sending message: %s\n", MY_SERVICE_ON);
                 if(sendto(sock, MY_SERVICE_ON, strlen(MY_SERVICE_ON)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                         exit(EXIT_FAILURE);
