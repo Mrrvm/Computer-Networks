@@ -14,6 +14,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <net/if.h>
+#include <errno.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define SC_PORT 59000
@@ -27,8 +28,12 @@
 #define GETTING_START 1
 #define SETTING_DS 2
 
+//./service -n 1 -j localhost -u 59002 -t 59001
+
+
 void spawn_error(char *error) {
     fprintf(stderr, "Error: %s", error);
+    printf("Error: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
 }
 
@@ -71,6 +76,8 @@ void getmyip(char my_ip[]) {
 }
 
 int main(int argc, char *argv[]) {
+
+  
 
     int opt;
     int counter, maxfd, x;
@@ -226,12 +233,13 @@ int main(int argc, char *argv[]) {
                         sprintf(reply, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
 
                         fprintf(stderr, "Sending message: %s\n", reply);
-                        if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Could not receive from SC\n");
+                        if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Could not send to SC\n");
 
                         sc_next_message = SETTING_DS;
                     }
                     /* Connect to startup server*/
                     else {
+                        sprintf(reply, "NEW %s;%s;%d\n", id, my_ip, my_port);
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
                         if(next_sock == -1) exit(EXIT_FAILURE);
                         if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
@@ -239,8 +247,13 @@ int main(int argc, char *argv[]) {
                         next_addr.sin_addr.s_addr = inet_addr(stup_ip);
                         next_addr.sin_port = htons((u_short)stup_port);
                         next_addrlen = sizeof(next_addr);
-                        printf("Connecting to %s:%d\n", stup_ip, stup_port);
-                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) != -1) spawn_error("Could not connect to startup server\n");
+                        fprintf(stderr, "Connecting to %s:%d\n", stup_ip, stup_port);
+                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Could not connect to startup server\n");
+
+
+
+                        if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Could not write to next server\n");
+                        fprintf(stderr, "Sending message: %s\n", reply);
                     }
                 }
 
@@ -282,6 +295,7 @@ int main(int argc, char *argv[]) {
         if(FD_ISSET(prev_sock, &rfds)) {
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
             if(new_prev_sock == -1) spawn_error("Could not accept socket\n");
+            fprintf(stderr, "Previous Server connected\n");
             state = accepted;
         }
 
@@ -289,12 +303,11 @@ int main(int argc, char *argv[]) {
         /* Talk to previous server */
         if(state == accepted && FD_ISSET(new_prev_sock, &rfds)) {
             
-            if(read(new_prev_sock, command, strlen(command)+1) == -1) spawn_error("Could not read from previous server\n");
+            if(read(new_prev_sock, command, sizeof(command)) == -1) spawn_error("Could not read from previous server\n");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "NEW") != NULL){
                 sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%d", prev_id, prev_ip, &prev_port);
-                printf("%d\n", prev_port);
             }
         }
 
