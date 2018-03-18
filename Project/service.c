@@ -239,6 +239,7 @@ int main(int argc, char *argv[]) {
                     }
                     /* Connect to startup server*/
                     else {
+                        close(next_sock);
                         sprintf(reply, "NEW %s;%s;%d\n", id, my_ip, my_port);
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
                         if(next_sock == -1) exit(EXIT_FAILURE);
@@ -254,6 +255,9 @@ int main(int argc, char *argv[]) {
 
                         if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Could not write to next server\n");
                         fprintf(stderr, "Sending message: %s\n", reply);
+
+                        close(next_sock);
+
                     }
                 }
 
@@ -293,6 +297,7 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Receive connections from previous servers */
         if(FD_ISSET(prev_sock, &rfds)) {
+            close(new_prev_sock);
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
             if(new_prev_sock == -1) spawn_error("Could not accept socket\n");
             fprintf(stderr, "Previous Server connected\n");
@@ -308,6 +313,9 @@ int main(int argc, char *argv[]) {
 
             if(strstr(command, "NEW") != NULL){
                 sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%d", prev_id, prev_ip, &prev_port);
+
+                state = available;
+                
             }
         }
 
