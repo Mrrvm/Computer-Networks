@@ -33,7 +33,7 @@
 
 void spawn_error(char *error) {
     fprintf(stderr, "Error: %s\n", error);
-    printf("Error: %s\n", strerror(errno));
+    fprintf(stderr, "Error: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
 }
 
@@ -364,13 +364,11 @@ int main(int argc, char *argv[]) {
                     if(strstr(tmp, "N")){
                         sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%[^\';'];%[^\';'];%d", origin_id, type, prev_id, prev_ip, &prev_port);
                         //sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];", origin_id, type);
-                        printf("origin_id: %s type: %s\n", origin_id, type);
 
                         if(strcmp(origin_id, stup_id) == 0){
                             strncpy(stup_id, prev_id, sizeof(prev_id));
                             strncpy(stup_ip,  prev_ip, sizeof(prev_ip));
                             stup_port = prev_port;
-                            printf("id: %s ip: %s port: %d\n", prev_id, prev_ip, prev_port);
                             close(next_sock);
                             next_sock = socket(AF_INET, SOCK_STREAM, 0);
                             if(next_sock == -1) spawn_error("Error creating next socket");
