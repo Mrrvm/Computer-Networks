@@ -32,7 +32,7 @@
 
 
 void spawn_error(char *error) {
-    fprintf(stderr, "Error: %s", error);
+    fprintf(stderr, "Error: %s\n", error);
     printf("Error: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
 }
@@ -80,6 +80,8 @@ int main(int argc, char *argv[]) {
   
 
     int opt;
+    int res;
+    int im_alone = 0;
     int counter, maxfd, x;
     int sc_next_message = 0;
     int my_port = -1, cli_port = -1, stup_port = -1, sc_port = SC_PORT, prev_port = -1;
@@ -90,10 +92,12 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
     enum {idle, available, accepted} state;
     fd_set rfds;
+    char *tmp = NULL;
     char *id = NULL;
+    char type[64];
     char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, stup_ip[64] = {0};
     char command[64] = {0}, reply[64] = {0};
-    char stup_id[4] = {0}, prev_id[4];
+    char stup_id[4] = {0}, prev_id[4] = {0}, origin_id[4] = {0};
     char aux[8] = {0};
 
     sprintf(sc_ip, "%s", SC_IP);
@@ -113,14 +117,14 @@ int main(int argc, char *argv[]) {
                     cli_port = atoi(optarg);
                 }
                 else 
-                    spawn_error("-u argument must me an integer\n");
+                    spawn_error("-u argument must me an integer");
                 
                 break;
             case 't':
                 if(isdigit(*optarg))
                     my_port = atoi(optarg);
                 else 
-                    spawn_error("-u argument must me an integer\n");
+                    spawn_error("-u argument must me an integer");
                 break;
             case 'i':
                 ptr = gethostbyname(optarg);
@@ -130,7 +134,7 @@ int main(int argc, char *argv[]) {
                 if(isdigit(*optarg))
                     sc_port = atoi(optarg);
                 else 
-                    spawn_error("-u argument must me an integer\n");
+                    spawn_error("-u argument must me an integer");
                 break;
             default: /* '?' */
                 show_usage(argv[0]);
@@ -146,30 +150,33 @@ int main(int argc, char *argv[]) {
 
     /* Send to SC */
     sc_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if(sc_sock ==-1) exit(EXIT_FAILURE);
-    if(memset((void*)&sc_addr, (int)'\0', sizeof(sc_addr))==NULL) exit(EXIT_FAILURE);
+    if(sc_sock ==-1) spawn_error("Error creating SC socket");
+    if(memset((void*)&sc_addr, (int)'\0', sizeof(sc_addr))==NULL) spawn_error("Error memsetting");
     sc_addr.sin_family = AF_INET;
     sc_addr.sin_addr.s_addr = inet_addr(sc_ip);
     sc_addr.sin_port = htons((u_short)sc_port);
     sc_addrlen = sizeof(sc_addr);
+
     /* Receive from Client*/
     cli_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if(cli_sock ==-1) exit(EXIT_FAILURE);
-    if(memset((void*)&cli_addr, (int)'\0', sizeof(cli_addr))==NULL) exit(EXIT_FAILURE);
+    if(cli_sock ==-1) spawn_error("Error creating Client Socket");
+    if(memset((void*)&cli_addr, (int)'\0', sizeof(cli_addr))==NULL) spawn_error("Error memsetting");
     cli_addr.sin_family = AF_INET;
     cli_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     cli_addr.sin_port = htons((u_short)cli_port);
     cli_addrlen = sizeof(cli_addr);
-    bind(cli_sock, (struct sockaddr*)&cli_addr, cli_addrlen);
+    if(bind(cli_sock, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Error binding Client Socket");
+
     /* Receive from prev*/
     prev_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if(prev_sock ==-1) exit(EXIT_FAILURE);
-    if(memset((void*)&my_addr, (int)'\0', sizeof(my_addr))==NULL) exit(EXIT_FAILURE);
+    if(prev_sock ==-1) spawn_error("Error creating prev socket");
+    if(memset((void*)&my_addr, (int)'\0', sizeof(my_addr))==NULL) spawn_error("Error memsetting");
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons((u_short)my_port);
     my_addrlen = sizeof(my_addr);
-    bind(prev_sock, (struct sockaddr*)&my_addr, my_addrlen);
+    if(bind(prev_sock, (struct sockaddr*)&my_addr, my_addrlen) == -1) spawn_error("Error binding Prev Socket");
+
     listen(prev_sock, 5);
     
     state = idle;
@@ -193,7 +200,7 @@ int main(int argc, char *argv[]) {
         }
 
         counter = select(maxfd+1, &rfds, (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
-        if(counter <= 0) exit(EXIT_FAILURE);
+        if(counter <= 0) spawn_error("Error in select");
         
         memset(command, 0, strlen(reply));
         memset(reply, 0, strlen(reply));
@@ -211,15 +218,23 @@ int main(int argc, char *argv[]) {
                 sprintf(reply, "%s %d;%s", GET_START, x, id);
                 fprintf(stderr, "Sending message: %s\n", reply);
 
-                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
+                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Error sending to SC");
                 sc_next_message = GETTING_START;
+            }
+            else if(strstr(command, "exit") != NULL){
+                close(sc_sock); 
+                close(next_sock);
+                close(new_prev_sock);
+                close(prev_sock);
+                close(cli_sock);
+                exit(EXIT_SUCCESS);
             }
         }
 
         /****************************************************/
         /* Talk to SC */
         if(FD_ISSET(sc_sock, &rfds)) {
-            if(recvfrom(sc_sock, command, sizeof(command), 0, (struct sockaddr*)&sc_addr, &sc_addrlen) == -1) spawn_error("Could not receive from SC\n");
+            if(recvfrom(sc_sock, command, sizeof(command), 0, (struct sockaddr*)&sc_addr, &sc_addrlen) == -1) spawn_error("Error receiving from SC");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "OK") != NULL){
@@ -229,11 +244,12 @@ int main(int argc, char *argv[]) {
                 /* Becomes startup server */
                 if(sc_next_message == GETTING_START) {
                     if(strcmp(stup_id, "0") == 0){
+                        im_alone = 1;
        
                         sprintf(reply, "%s %d;%s;%s;%d", SET_START, x, id, my_ip, my_port);
 
                         fprintf(stderr, "Sending message: %s\n", reply);
-                        if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Could not send to SC\n");
+                        if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Error sending to SC");
 
                         sc_next_message = SETTING_DS;
                     }
@@ -242,21 +258,21 @@ int main(int argc, char *argv[]) {
                         close(next_sock);
                         sprintf(reply, "NEW %s;%s;%d\n", id, my_ip, my_port);
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
-                        if(next_sock == -1) exit(EXIT_FAILURE);
-                        if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) exit(EXIT_FAILURE);
+                        if(next_sock == -1) spawn_error("Error creating next socket");
+                        if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) spawn_error("Error memsetting");
                         next_addr.sin_family = AF_INET;
                         next_addr.sin_addr.s_addr = inet_addr(stup_ip);
                         next_addr.sin_port = htons((u_short)stup_port);
                         next_addrlen = sizeof(next_addr);
                         fprintf(stderr, "Connecting to %s:%d\n", stup_ip, stup_port);
-                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Could not connect to startup server\n");
+                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Error connecting to next");
 
 
 
-                        if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Could not write to next server\n");
+                        if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Error writing to next");
                         fprintf(stderr, "Sending message: %s\n", reply);
 
-                        close(next_sock);
+                       
 
                     }
                 }
@@ -267,7 +283,7 @@ int main(int argc, char *argv[]) {
                     sprintf(reply, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
 
                     fprintf(stderr, "Sending message: %s\n", reply);
-                    if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
+                    if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Error sending to SC");
 
                     sc_next_message = NOTHING;
 
@@ -280,7 +296,7 @@ int main(int argc, char *argv[]) {
         /* Talk to client */
         if(FD_ISSET(cli_sock, &rfds)) {
 
-            if(recvfrom(cli_sock, command, sizeof(command), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1) spawn_error("Could not receive from client\n");
+            if(recvfrom(cli_sock, command, sizeof(command), 0, (struct sockaddr*)&cli_addr, &cli_addrlen)==-1) spawn_error("Error receiving from Client");
             fprintf(stderr, "Received: %s\n", command);
 
             if(strstr(command, "MY_SERVICE") != NULL){
@@ -289,7 +305,7 @@ int main(int argc, char *argv[]) {
                 sprintf(reply, "YOUR_SERVICE %s", aux);
 
                 fprintf(stderr, "Sending message: %s\n", reply);
-                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
+                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Error sending to client");
             }
 
         }
@@ -299,7 +315,7 @@ int main(int argc, char *argv[]) {
         if(FD_ISSET(prev_sock, &rfds)) {
             close(new_prev_sock);
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
-            if(new_prev_sock == -1) spawn_error("Could not accept socket\n");
+            if(new_prev_sock == -1) spawn_error("Error accepting prev");
             fprintf(stderr, "Previous Server connected\n");
             state = accepted;
         }
@@ -308,15 +324,75 @@ int main(int argc, char *argv[]) {
         /* Talk to previous server */
         if(state == accepted && FD_ISSET(new_prev_sock, &rfds)) {
             
-            if(read(new_prev_sock, command, sizeof(command)) == -1) spawn_error("Could not read from previous server\n");
-            fprintf(stderr, "Received: %s\n", command);
+            res = read(new_prev_sock, command, sizeof(command));
+            if(res == -1) spawn_error("Error reading from prev");
+            else if(res == 0) {close(new_prev_sock); state = available;}
+            else{
 
-            if(strstr(command, "NEW") != NULL){
-                sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%d", prev_id, prev_ip, &prev_port);
+                fprintf(stderr, "Received: %s\n", command);
 
-                state = available;
-                
+                if(strstr(command, "NEW") != NULL){
+                    sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%d", prev_id, prev_ip, &prev_port);
+
+                    if(im_alone){
+                        strncpy(stup_id, prev_id, sizeof(prev_id));
+                        strncpy(stup_ip,  prev_ip, sizeof(prev_ip));
+                        stup_port = prev_port;
+                        close(next_sock);
+                        next_sock = socket(AF_INET, SOCK_STREAM, 0);
+                        if(next_sock == -1) spawn_error("Error creating next socket");
+                        if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) spawn_error("Error memsetting");
+                        next_addr.sin_family = AF_INET;
+                        next_addr.sin_addr.s_addr = inet_addr(stup_ip);
+                        next_addr.sin_port = htons((u_short)stup_port);
+                        next_addrlen = sizeof(next_addr);
+                        fprintf(stderr, "Connecting to %s:%d\n", stup_ip, stup_port);
+                        if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Could not connect to startup server");
+                        im_alone = 0;
+                    }
+                    else{
+                        sprintf(reply, "TOKEN %s;N;%s;%s;%d\n", id, prev_id, prev_ip, prev_port);
+                        fprintf(stderr, "Sending message: %s\n", reply);
+                        if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Could not write to next server");
+
+
+                    }
+                    
+                }
+                else if(strstr(command, "TOKEN") != NULL){
+                    tmp = strstr(command, ";");
+                    if(strstr(tmp, "N")){
+                        sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];%[^\';'];%[^\';'];%d", origin_id, type, prev_id, prev_ip, &prev_port);
+                        //sscanf(command, "%*[^\' '] %[^\';'];%[^\';'];", origin_id, type);
+                        printf("origin_id: %s type: %s\n", origin_id, type);
+
+                        if(strcmp(origin_id, stup_id) == 0){
+                            strncpy(stup_id, prev_id, sizeof(prev_id));
+                            strncpy(stup_ip,  prev_ip, sizeof(prev_ip));
+                            stup_port = prev_port;
+                            printf("id: %s ip: %s port: %d\n", prev_id, prev_ip, prev_port);
+                            close(next_sock);
+                            next_sock = socket(AF_INET, SOCK_STREAM, 0);
+                            if(next_sock == -1) spawn_error("Error creating next socket");
+                            if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) spawn_error("Error memsetting");
+                            next_addr.sin_family = AF_INET;
+                            next_addr.sin_addr.s_addr = inet_addr(stup_ip);
+                            next_addr.sin_port = htons((u_short)stup_port);
+                            next_addrlen = sizeof(next_addr);
+                            fprintf(stderr, "Connecting to %s:%d\n", stup_ip, stup_port);
+                            if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Could not connect to startup server");
+
+                        }
+                        else{
+                            if(write(next_sock, command, strlen(command)) == -1) spawn_error("Could not write to next server");
+
+                        }
+                        
+                    }
+
+                }
             }
+
         }
 
 
