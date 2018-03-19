@@ -24,7 +24,7 @@
 #define GET_START "GET_START"
 #define SET_START "SET_START"
 #define SET_DS "SET_DS"
-#define NOTHING 0
+#define NONE 0
 #define GETTING_START 1
 #define SETTING_DS 2
 
@@ -77,16 +77,11 @@ void getmyip(char my_ip[]) {
 
 int main(int argc, char *argv[]) {
 
-  
-
-    int opt;
-    int res;
-    int im_alone = 0;
-    int counter, maxfd, x;
-    int sc_next_message = 0;
+    int counter, maxfd, x, im_alone = 0, res = 0, opt = 0;
+    int sc_next_message = NONE, sc_last_message = NONE;
     int my_port = -1, cli_port = -1, stup_port = -1, sc_port = SC_PORT, prev_port = -1;
     int sc_sock, next_sock, prev_sock, new_prev_sock, cli_sock;
-    int is_ds = 0, is_stp = 0, is_ring_av = 1;
+    int is_ds = 0, is_stp = 0, is_ring_av = 1, is_av = 1;
     unsigned int sc_addrlen, next_addrlen, my_addrlen, cli_addrlen;
     struct hostent *ptr = NULL;
     struct sockaddr_in sc_addr, next_addr, my_addr, cli_addr;
@@ -94,11 +89,10 @@ int main(int argc, char *argv[]) {
     fd_set rfds;
     char *tmp = NULL;
     char *id = NULL;
-    char type[64];
     char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, stup_ip[64] = {0};
     char command[64] = {0}, reply[64] = {0};
     char stup_id[4] = {0}, prev_id[4] = {0}, origin_id[4] = {0};
-    char aux[8] = {0};
+    char aux[8] = {0}, type[4] = {0};
 
     sprintf(sc_ip, "%s", SC_IP);
 
@@ -251,11 +245,11 @@ int main(int argc, char *argv[]) {
                         fprintf(stderr, "Sending message: %s\n", reply);
                         if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen)==-1) spawn_error("Error sending to SC");
 
+                        sc_last_message = sc_next_message;
                         sc_next_message = SETTING_DS;
                     }
                     /* Connect to startup server*/
                     else {
-                        close(next_sock);
                         sprintf(reply, "NEW %s;%s;%d\n", id, my_ip, my_port);
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
                         if(next_sock == -1) spawn_error("Error creating next socket");
@@ -266,13 +260,8 @@ int main(int argc, char *argv[]) {
                         next_addrlen = sizeof(next_addr);
                         fprintf(stderr, "Connecting to %s:%d\n", stup_ip, stup_port);
                         if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Error connecting to next");
-
-
-
                         if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Error writing to next");
-                        fprintf(stderr, "Sending message: %s\n", reply);
-
-                       
+                        fprintf(stderr, "Sending message: %s\n", reply);          
 
                     }
                 }
@@ -280,13 +269,24 @@ int main(int argc, char *argv[]) {
                 /* Acknowledges itself as startup*/
                 else if(sc_next_message == SETTING_DS) {
 
+                    if(sc_last_message == GETTING_START) {
+                        is_stp = 1;
+                    }
+
                     sprintf(reply, "%s %d;%s;%s;%d", SET_DS, x, id, my_ip, cli_port);
 
                     fprintf(stderr, "Sending message: %s\n", reply);
                     if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Error sending to SC");
 
-                    sc_next_message = NOTHING;
+                    sc_last_message = sc_next_message;
+                    sc_next_message = NONE;
 
+                }
+
+                // Confirms status as DS server
+                else if(sc_last_message == SETTING_DS) {
+                    is_ds = 1;
+                    sc_last_message = NONE;
                 }
 
             }
@@ -301,11 +301,31 @@ int main(int argc, char *argv[]) {
 
             if(strstr(command, "MY_SERVICE") != NULL){
 
+                //add my service off/on
+
+                // Tells SC that I am not dispatch anymore
+                sprintf(reply, "WITHDRAW_DS %d;%s", service, id);
+                fprintf(stderr, "Sending message: %s\n", reply);
+                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
+
+                // Sends token S to next server
+                if(!im_alone) {
+                    memset(reply, 0, strlen(reply));
+                    sprintf(reply, "TOKEN %s;%s\n", id, "S");
+                    fprintf(stderr, "Sending message: %s\n", reply);
+                    if(sendto(next_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&next_addr, next_addrlen) == -1) spawn_error("Could not send to next server\n");
+                }
+
+                // Tells client service is on
+                memset(reply, 0, strlen(reply));
                 sscanf(command, "%*[^\' '] %s", aux);
                 sprintf(reply, "YOUR_SERVICE %s", aux);
-
                 fprintf(stderr, "Sending message: %s\n", reply);
-                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Error sending to client");
+                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
+            
+                is_av = 0;
+                is_ds = 0;
+
             }
 
         }
@@ -313,7 +333,6 @@ int main(int argc, char *argv[]) {
         /****************************************************/
         /* Receive connections from previous servers */
         if(FD_ISSET(prev_sock, &rfds)) {
-            close(new_prev_sock);
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&my_addr, &my_addrlen);
             if(new_prev_sock == -1) spawn_error("Error accepting prev");
             fprintf(stderr, "Previous Server connected\n");
@@ -338,7 +357,6 @@ int main(int argc, char *argv[]) {
                         strncpy(stup_id, prev_id, sizeof(prev_id));
                         strncpy(stup_ip,  prev_ip, sizeof(prev_ip));
                         stup_port = prev_port;
-                        close(next_sock);
                         next_sock = socket(AF_INET, SOCK_STREAM, 0);
                         if(next_sock == -1) spawn_error("Error creating next socket");
                         if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) spawn_error("Error memsetting");
@@ -354,8 +372,6 @@ int main(int argc, char *argv[]) {
                         sprintf(reply, "TOKEN %s;N;%s;%s;%d\n", id, prev_id, prev_ip, prev_port);
                         fprintf(stderr, "Sending message: %s\n", reply);
                         if(write(next_sock, reply, strlen(reply)) == -1) spawn_error("Could not write to next server");
-
-
                     }
                     
                 }
@@ -369,7 +385,6 @@ int main(int argc, char *argv[]) {
                             strncpy(stup_id, prev_id, sizeof(prev_id));
                             strncpy(stup_ip,  prev_ip, sizeof(prev_ip));
                             stup_port = prev_port;
-                            close(next_sock);
                             next_sock = socket(AF_INET, SOCK_STREAM, 0);
                             if(next_sock == -1) spawn_error("Error creating next socket");
                             if(memset((void*)&next_addr, (int)'\0', sizeof(next_addr))==NULL) spawn_error("Error memsetting");
@@ -385,6 +400,9 @@ int main(int argc, char *argv[]) {
                             if(write(next_sock, command, strlen(command)) == -1) spawn_error("Could not write to next server");
 
                         }
+                        
+                    }
+                    else if(strstr(tmp, "S")) {
                         
                     }
 
