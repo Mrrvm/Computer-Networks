@@ -15,7 +15,7 @@ int main(void)
     unsigned int addrlen;
     struct hostent *hostptr = NULL;
     struct sockaddr_in serveraddr;
-    char id[8] = {0}, buffer[80] = {0}, service[8] = {0}, id_stup[8] = {0}, mid[8] = {0};
+    char id[8] = {0}, buffer[80] = {0}, service[8] = {0}, id_stup[8] = {0};
 
     printf("Service: (press Enter to ignore) ");
     fgets(service, 8, stdin);
@@ -61,7 +61,6 @@ int main(void)
     // Exterminate
     if(sendto(fd, buffer, strlen(buffer)+1, 0, (struct sockaddr *)&serveraddr, addrlen) != -1)
     {
-
         memset(buffer, 0, strlen(buffer));
         sprintf(buffer, "%s %s;%s", "WITHDRAW_DS", service, id);
         if(sendto(fd, buffer, strlen(buffer)+1, 0, (struct sockaddr *)&serveraddr, addrlen) != -1)
@@ -77,14 +76,13 @@ int main(void)
                 // Verify extermination
                 if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&serveraddr, &addrlen) != -1)
                 {
-                    sscanf(buffer, "%*[^\' '] %[^\';'];%[^\';'];", mid, id_stup);
+                    sscanf(buffer, "%*[^\' '] %*[^\';'];%[^\';'];", id_stup);
                     if(strcmp(id_stup, "0") == 0)
                     {   
-                        if(strcmp(id, mid) == 0) {
-                            printf("SUCCESS: SC was wiped out\n");
-                            close(fd);
-                            exit(0);
-                        }
+                        printf("SUCCESS: SC was wiped out\n");
+                        close(fd);
+                        exit(0);
+                        
                     }
                 }
             }
