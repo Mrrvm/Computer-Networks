@@ -7,6 +7,7 @@ struct sockaddr_in define_AF_INET_conn(int *sock, int type, int port, char *ip) 
 	*sock = socket(AF_INET, type, 0);
     if(*sock == -1) spawn_error("Cannot create socket");
 
+    if(memset((void*)&addr, (int)'\0', sizeof(addr)) == NULL) spawn_error("Cannot memset");
 	addr.sin_family = AF_INET;
 	if(ip == NULL) {
 		addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -52,17 +53,17 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 	else if(type == NEW) {
 		sprintf(msg, "NEW %d;%s;%d\n", my_id, my_ip, prev_port);
 		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_N");      
-		fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
 	else if(type == TOKEN_N) {
 		sprintf(msg, "TOKEN %d;N;%d;%s;%d\n", my_id, prev_id, prev_ip, prev_server_tport);
 		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_N");      
-		fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
 	else if(type == TOKEN_S) {
 		sprintf(msg, "TOKEN %d;%s\n", my_id, "S"); 
 		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_S");      
-		fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
 	else if(type == YOUR_SERVICE_ON) {
 		sprintf(msg, "YOUR_SERVICE ON");

@@ -3,9 +3,9 @@
 /// Ports
 extern int cli_port, sc_port, next_port, prev_port, prev_server_tport;
 /// IPs
-extern char my_ip[64], sc_ip[64], prev_ip[64];
+extern char my_ip[64], sc_ip[64], prev_ip[64], next_ip[64];
 /// IDs
-extern int my_id, prev_id;
+extern int my_id, prev_id, next_id;
 /// Service number
 extern int service;
 
