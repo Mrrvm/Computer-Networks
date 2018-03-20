@@ -301,31 +301,40 @@ int main(int argc, char *argv[]) {
 
             if(strstr(command, "MY_SERVICE") != NULL){
 
-                //add my service off/on
-
-                // Tells SC that I am not dispatch anymore
-                sprintf(reply, "WITHDRAW_DS %d;%s", service, id);
-                fprintf(stderr, "Sending message: %s\n", reply);
-                if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
-
-                // Sends token S to next server
-                if(!im_alone) {
-                    memset(reply, 0, strlen(reply));
-                    sprintf(reply, "TOKEN %s;%s\n", id, "S");
+                if(strstr(command, "ON") != NULL){   
+                    // Tells SC that I am not dispatch anymore
+                    sprintf(reply, "WITHDRAW_DS %d;%s", service, id);
                     fprintf(stderr, "Sending message: %s\n", reply);
-                    if(sendto(next_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&next_addr, next_addrlen) == -1) spawn_error("Could not send to next server\n");
+                    if(sendto(sc_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&sc_addr, sc_addrlen) == -1) spawn_error("Could not send to SC\n");
+
+                    // Sends token S to next server
+                    if(!im_alone) {
+                        memset(reply, 0, strlen(reply));
+                        sprintf(reply, "TOKEN %s;%s\n", id, "S");
+                        fprintf(stderr, "Sending message: %s\n", reply);
+                        if(sendto(next_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&next_addr, next_addrlen) == -1) spawn_error("Could not send to next server\n");
+                    }
+
+                    // Tells client service is on
+                    memset(reply, 0, strlen(reply));
+                    sscanf(command, "%*[^\' '] %s", aux);
+                    sprintf(reply, "YOUR_SERVICE %s", aux);
+                    fprintf(stderr, "Sending message: %s\n", reply);
+                    if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
+                
+                    is_av = 0;
+                    is_ds = 0;
                 }
-
-                // Tells client service is on
-                memset(reply, 0, strlen(reply));
-                sscanf(command, "%*[^\' '] %s", aux);
-                sprintf(reply, "YOUR_SERVICE %s", aux);
-                fprintf(stderr, "Sending message: %s\n", reply);
-                if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
-            
-                is_av = 0;
-                is_ds = 0;
-
+                else {
+                    // Tells client service is on
+                    memset(reply, 0, strlen(reply));
+                    sscanf(command, "%*[^\' '] %s", aux);
+                    sprintf(reply, "YOUR_SERVICE %s", aux);
+                    fprintf(stderr, "Sending message: %s\n", reply);
+                    if(sendto(cli_sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&cli_addr, cli_addrlen) == -1) spawn_error("Could not send to client\n");
+                
+                    is_av = 1;
+                }             
             }
 
         }
