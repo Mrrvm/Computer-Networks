@@ -138,15 +138,13 @@ int main(int argc, char *argv[]) {
                     send_msg(WITHDRAW_START, sc_sock, sc_addr);
                     last_msg = WITHDRAW_START;
                 }
-
-                /// If I'm the dispatch server 
-            	if(!im_stup && im_ds) {
+                /// If I'm the dispatch server (!im_stup)
+            	else if(im_ds) {
             		send_msg(WITHDRAW_DS, sc_sock, sc_addr);
             		last_msg = WITHDRAW_DS;
             	}
-
-                /// If I'm nothing
-                if(!im_stup && !im_ds) {
+                /// If I'm nothing (!im_stup)
+               else if(!im_ds) {
                     send_msg(TOKEN_O, next_sock, next_addr);
                 }
             }
