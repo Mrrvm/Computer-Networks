@@ -126,19 +126,29 @@ int main(int argc, char *argv[]) {
             }
             /// Handle $leave
             else if((strstr(msg, "leave") != NULL) || (strstr(msg, "exit") != NULL)) {
-            	// If busy with a client, quit!
-            	if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
-            	if(im_stup) {
-            		send_msg(WITHDRAW_START, sc_sock, sc_addr);
-            		last_msg = WITHDRAW_START;
-            	} 
             	if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
             	else im_leaving = LEAVE;
+                
+                /// If busy with a client, warn him!
+                if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
             	im_av = 0;
-            	if(im_ds) {
+
+                /// If I'm the startup server (DS condition is checked on confirmations)
+                if(im_stup) {
+                    send_msg(WITHDRAW_START, sc_sock, sc_addr);
+                    last_msg = WITHDRAW_START;
+                }
+
+                /// If I'm the dispatch server 
+            	if(!im_stup && im_ds) {
             		send_msg(WITHDRAW_DS, sc_sock, sc_addr);
             		last_msg = WITHDRAW_DS;
             	}
+
+                /// If I'm nothing
+                if(!im_stup && !im_ds) {
+                    send_msg(TOKEN_O, next_sock, next_addr);
+                }
             }
         }
 
@@ -196,12 +206,14 @@ int main(int argc, char *argv[]) {
             		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_START) {
+                    if(!iam_alone) send_msg(NEW_START, next_sock, next_addr);
+                    if(im_leaving && !im_ds) send_msg(TOKEN_O, next_sock, next_addr);
+                    if(im_leaving && im_ds) {
+                        send_msg(WITHDRAW_DS, sc_sock, sc_addr);
+                        last_msg = WITHDRAW_DS;
+                    }
             		im_stup = 0;
-            		send_msg(NEW_START, next_sock, next_addr);
             		last_msg = NONE;
-            		if(im_leaving && !im_ds) {
-            			send_msg(TOKEN_O, next_sock, next_addr);
-            		}
             	}
             }
         }
@@ -341,9 +353,7 @@ int main(int argc, char *argv[]) {
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
 			        	if(my_id == dummy) {
-			        		// EXIT
-			        		close(sc_sock); 
-			                close(cli_sock);
+			        		/// Leave or exit
 			                close(new_prev_sock);
 			                close(next_sock);
 			                close(prev_sock);
