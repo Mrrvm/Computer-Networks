@@ -1,7 +1,8 @@
 #include "defs.h"
 
 /// Ports
-extern int cli_port, sc_port, next_port, prev_port, prev_server_tport;
+extern int cli_port, sc_port, next_port, prev_port, 
+		   prev_server_tport;
 /// IPs
 extern char my_ip[64], sc_ip[64], prev_ip[64], next_ip[64];
 /// IDs

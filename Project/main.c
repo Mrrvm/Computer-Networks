@@ -120,7 +120,9 @@ int main(int argc, char *argv[]) {
             }
             /// Handle $show_state
             else if(strstr(msg, "show_state") != NULL) {
-
+            	fprintf(stderr, 
+            		KMAG"CURRENT STATE\n\tAVAILABLE"RESET" %d\n"KMAG"\tRING AVAILABLE"RESET" %d\n"KMAG"\tNEXT ID"RESET" %d\n"RESET, 
+            		im_av, is_ring_av, next_id);
             }
             /// Handle $leave
             else if(strstr(msg, "leave") != NULL) {
@@ -161,6 +163,7 @@ int main(int argc, char *argv[]) {
             			next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
             			if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
             			send_msg(NEW, next_sock, next_addr);
+            			last_msg = NONE;
             		}
             	}
             	else if(last_msg == SET_START) {
@@ -173,6 +176,7 @@ int main(int argc, char *argv[]) {
             	else if(last_msg == SET_DS) {
             		/// Confirms previously asked dispatch status
             		im_ds = 1;
+            		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_DS) {
             		/// After confirming off duty status
@@ -183,6 +187,7 @@ int main(int argc, char *argv[]) {
             		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
             		/// Update my conditions
             		im_av = 0; im_ds = 0;
+            		last_msg = NONE;
             	}
             }
         }
@@ -241,7 +246,7 @@ int main(int argc, char *argv[]) {
             			else {
             				/// Resend token
                             if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
-            				fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+            				fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
             			}
             		}
             		/// TOKEN S
@@ -262,12 +267,12 @@ int main(int argc, char *argv[]) {
             				else {
             					/// Resend token
                             	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
-            					fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+            					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
             				}
             			}
             		}
             		/// TOKEN T
-            		else if(strstr(dummy_s, "T") != NULL){
+            		else if(strstr(dummy_s, "T") != NULL) {
 			            sscanf(msg, "%*[^\' '] %d;", &dummy);
 			            if(my_id != dummy) {
 			                /// Resend token
@@ -276,11 +281,9 @@ int main(int argc, char *argv[]) {
 			            }
 			        }
             		/// TOKEN I
-            		else if(strstr(dummy_s, "I") != NULL){
-            			if(im_av) {
-            				/// Send token D
-            			}
-            			else {
+            		else if(strstr(dummy_s, "I") != NULL) {
+            			/// This condition garantees there are no sudden availability changes
+            			if(!im_av) {
             				/// Update ring status
             				is_ring_av = 0;
 			            	sscanf(msg, "%*[^\' '] %d;", &dummy);
@@ -290,6 +293,31 @@ int main(int argc, char *argv[]) {
 	        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 				            }
             			}
+			        }
+			        /// TOKEN D
+			        else if(strstr(dummy_s, "D") != NULL) {
+			        	if(im_av) {
+			        		sscanf(msg, "%*[^\' '] %d;", &dummy);
+			        		if(my_id > dummy) {
+			        			/// Resend token
+	                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+	        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+			        		}
+			        		else if(my_id == dummy){
+			        			/// Inform SC server I am dispatch now
+            					send_msg(SET_DS, sc_sock, sc_addr);
+			        		}
+			        	}
+			        	else {
+			        		/// Resend token
+                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+			        	}
+			        	is_ring_av = 1;
+			        }
+			        /// TOKEN O
+			        else if(strstr(dummy_s, "O") != NULL) {
+
 			        }
             	}
             }
@@ -312,6 +340,10 @@ int main(int argc, char *argv[]) {
             	else if(strstr(msg, "OFF") != NULL) {
             		send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
             		im_av = 1;
+            		if(!is_ring_av) {
+            			/// Send token D
+            			send_msg(TOKEN_D, next_sock, next_addr);
+            		}
             	}
             }
         }

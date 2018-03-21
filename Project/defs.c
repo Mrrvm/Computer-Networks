@@ -1,7 +1,7 @@
 #include "defs.h"
 
 void spawn_error(char *error) {
-    fprintf(stderr, "Error: %s. %s\n", strerror(errno), error);
+    fprintf(stderr, KRED"Error: %s. %s\n"RESET, strerror(errno), error);
     exit(EXIT_FAILURE);
 }
 
