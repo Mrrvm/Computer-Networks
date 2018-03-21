@@ -6,7 +6,7 @@ int cli_port = 0, sc_port = SC_PORT, next_port = 0,
 /// IPs
 char my_ip[64] = {0}, sc_ip[64] = {0}, prev_ip[64] = {0}, next_ip[64] = {0};
 /// IDs
-int my_id = -1, prev_id = -1, next_id = -1;
+int my_id = -1, prev_id = -1, next_id = -1, S_sender_id = -1;
 /// Service number
 int service = 0;
 
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 	/// State
 	enum {off, joined, accepted} state = off;
 	/// Conditions
-	int im_alone = 1, is_ring_av = 1, im_ds = 0, im_stup = 0, im_av = 1;
+	int im_alone = 1, is_ring_av = 1, im_ds = 0, im_stup = 0, im_av = 1, im_leaving = 0;
 
 	/// Set SC IP by default
 	ptr = gethostbyname(SC_IP);
@@ -125,17 +125,20 @@ int main(int argc, char *argv[]) {
             		im_av, is_ring_av, next_id);
             }
             /// Handle $leave
-            else if(strstr(msg, "leave") != NULL) {
-            	
-            }
-            /// Handle $exit
-            else if(strstr(msg, "exit") != NULL) {
-                close(sc_sock); 
-                close(next_sock);
-                close(new_prev_sock);
-                close(prev_sock);
-                close(cli_sock);
-                exit(EXIT_SUCCESS);
+            else if((strstr(msg, "leave") != NULL) || (strstr(msg, "exit") != NULL)) {
+            	// If busy with a client, quit!
+            	if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
+            	if(im_stup) {
+            		send_msg(WITHDRAW_START, sc_sock, sc_addr);
+            		last_msg = WITHDRAW_START;
+            	} 
+            	if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
+            	else im_leaving = LEAVE;
+            	im_av = 0;
+            	if(im_ds) {
+            		send_msg(WITHDRAW_DS, sc_sock, sc_addr);
+            		last_msg = WITHDRAW_DS;
+            	}
             }
         }
 
@@ -179,15 +182,26 @@ int main(int argc, char *argv[]) {
             		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_DS) {
+
             		/// After confirming off duty status
             		/// Inform other servers (Token S)
             		if(!im_alone) send_msg(TOKEN_S, next_sock, next_addr);
             		else is_ring_av = 0;
-            		/// Inform client the service is ON
-            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
-            		/// Update my conditions
-            		im_av = 0; im_ds = 0;
+            		if(!im_leaving) {
+	            		/// Inform client the service is ON
+	            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
+	            		/// Update my conditions
+	            		im_av = 0; im_ds = 0;
+            		}
             		last_msg = NONE;
+            	}
+            	else if(last_msg == WITHDRAW_START) {
+            		im_stup = 0;
+            		send_msg(NEW_START, next_sock, next_addr);
+            		last_msg = NONE;
+            		if(im_leaving && !im_ds) {
+            			send_msg(TOKEN_O, next_sock, next_addr);
+            		}
             	}
             }
         }
@@ -211,8 +225,12 @@ int main(int argc, char *argv[]) {
             else{
             	fprintf(stderr, KGRN"RECV\t"RESET"%s", msg);
            
+            	/// Handle NEW_START
+            	if(strstr(msg, "NEW_START") != NULL) {
+            		send_msg(SET_START, sc_sock, sc_addr);
+            	}
             	/// Handle NEW
-            	if(strstr(msg, "NEW") != NULL) {
+            	else if(strstr(msg, "NEW") != NULL) {
             		sscanf(msg, "%*[^\' '] %d;%[^\';'];%d", &prev_id, prev_ip, &prev_server_tport);
             		/// When only 2 servers
             		if(im_alone) {
@@ -257,9 +275,12 @@ int main(int argc, char *argv[]) {
             			if(my_id == dummy) {
             				/// Send token I
             				send_msg(TOKEN_I, next_sock, next_addr);
+            				if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
             			}
             			else {
             				if(im_av) {
+            					/// Send token T
+            					S_sender_id = dummy;
             					send_msg(SET_DS, sc_sock, sc_addr);
             					send_msg(TOKEN_T, next_sock, next_addr);
             					last_msg = SET_DS;
@@ -279,6 +300,8 @@ int main(int argc, char *argv[]) {
                         	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
         					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 			            }
+			            else 
+			            	if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
 			        }
             		/// TOKEN I
             		else if(strstr(dummy_s, "I") != NULL) {
@@ -317,7 +340,36 @@ int main(int argc, char *argv[]) {
 			        }
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
-
+			        	if(my_id == dummy) {
+			        		// EXIT
+			        		close(sc_sock); 
+			                close(cli_sock);
+			                close(new_prev_sock);
+			                close(next_sock);
+			                close(prev_sock);
+			                if(im_leaving == LEAVE)
+			                	fprintf(stderr, "%s\n", "SEE YA LATER!");
+			                else {
+			                	fprintf(stderr, "%s\n", "GOODBYE!");
+			                	exit(EXIT_SUCCESS);
+			                }
+			            }
+			            else if(next_id == dummy) {
+			            	close(next_sock);
+			            	memset(next_ip, 0, strlen(next_ip));
+            				sscanf(msg, "%*[^\' '] %*[^\';'];%*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
+            				next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
+            				if(connect(next_sock, (struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
+			            }
+			            else if(prev_id == dummy) {
+			            	close(new_prev_sock);
+			            	state = joined;
+			            }
+			            else {
+			                /// Resend token
+                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+			            }
 			        }
             	}
             }

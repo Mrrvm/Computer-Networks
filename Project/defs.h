@@ -49,6 +49,9 @@
 #define YOUR_SERVICE_ON 14
 #define YOUR_SERVICE_OFF 15
 
+#define EXIT 1
+#define LEAVE 2
+
 void spawn_error(char *error);
 void show_usage(char *exe_name);
 void getmyip(char my_ip[]);
