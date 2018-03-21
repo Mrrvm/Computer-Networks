@@ -204,14 +204,14 @@ int main(int argc, char *argv[]) {
             		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_START) {
-                    if(!iam_alone) send_msg(NEW_START, next_sock, next_addr);
+                    if(!im_alone) send_msg(NEW_START, next_sock, next_addr);
                     if(im_leaving && !im_ds) send_msg(TOKEN_O, next_sock, next_addr);
                     if(im_leaving && im_ds) {
                         send_msg(WITHDRAW_DS, sc_sock, sc_addr);
                         last_msg = WITHDRAW_DS;
                     }
+                    else last_msg = NONE;
             		im_stup = 0;
-            		last_msg = NONE;
             	}
             }
         }
@@ -253,7 +253,11 @@ int main(int argc, char *argv[]) {
             			if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
             			im_alone = 0;
 
-            			/// NOTE: Handle case where ring is unavailable and a new server enters
+            			/// Handle case where ring is unavailable and a new server enters (Send token I again)
+                        if(!is_ring_av) {
+                            end_msg(TOKEN_I, next_sock, next_addr);
+                        }
+
             		}
             		else send_msg(TOKEN_N, next_sock, next_addr);
             	}
@@ -350,11 +354,12 @@ int main(int argc, char *argv[]) {
 			        }
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
+                        sscanf(msg, "%*[^\' '] %d;", &dummy);
 			        	if(my_id == dummy) {
 			        		/// Leave or exit
 			                close(new_prev_sock);
 			                close(next_sock);
-			                close(prev_sock);
+                            state = off;
 			                if(im_leaving == LEAVE)
 			                	fprintf(stderr, "%s\n", "SEE YA LATER!");
 			                else {
@@ -363,9 +368,14 @@ int main(int argc, char *argv[]) {
 			                }
 			            }
 			            else if(next_id == dummy) {
-			            	close(next_sock);
-			            	memset(next_ip, 0, strlen(next_ip));
-            				sscanf(msg, "%*[^\' '] %*[^\';'];%*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
+                            /// Resend token
+                            if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+                            fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+                            /// Close connection with next
+                            close(next_sock);
+                            /// Start connection with the next's next
+                            memset(next_ip, 0, strlen(next_ip));
+                            sscanf(msg, "%*[^\' '] %*[^\';'];%*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
             				next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
             				if(connect(next_sock, (struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
 			            }

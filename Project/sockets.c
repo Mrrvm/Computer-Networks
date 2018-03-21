@@ -88,7 +88,7 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 	else if(type == NEW_START) {
 		sprintf(msg, "NEW_START\n");
 		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send YOUR_SERVICE OFF\n");
-		fprintf(stderr, KCYN"SENT\t"RESET"%s", msg);
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
 	else if(type == YOUR_SERVICE_ON) {
 		sprintf(msg, "YOUR_SERVICE ON");
