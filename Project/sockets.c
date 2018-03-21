@@ -65,15 +65,25 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_S");      
 		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
+	else if(type == TOKEN_T) {
+		sprintf(msg, "TOKEN %d;%s\n", my_id, "T");
+		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_T");      
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+	}
+	else if(type == TOKEN_I) {
+		sprintf(msg, "TOKEN %d;%s\n", my_id, "I");
+		if(write(sock, msg, strlen(msg)) == -1) spawn_error("Cannot send TOKEN_I");      
+		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+	}
 	else if(type == YOUR_SERVICE_ON) {
 		sprintf(msg, "YOUR_SERVICE ON");
 		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send YOUR_SERVICE ON\n");
-		fprintf(stderr, KBLU"SENT\t"RESET"%s\n", msg);
+		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
 	}
 	else if(type == YOUR_SERVICE_OFF) {
 		sprintf(msg, "YOUR_SERVICE OFF");
 		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send YOUR_SERVICE ON\n");
-		fprintf(stderr, KBLU"SENT\t"RESET"%s\n", msg);
+		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
 	}
 
 }

@@ -13,7 +13,7 @@ int service = 0;
 int main(int argc, char *argv[]) {
 	
 	int opt = 0, maxfd = 0, counter = 0, dummy = 0;
-	int next_msg = NONE, last_msg = NONE;
+	int last_msg = NONE;
 	struct hostent *ptr = NULL;
 	fd_set rfds;
 	char msg[64] = {0};
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 	/// State
 	enum {off, joined, accepted} state = off;
 	/// Conditions
-	int im_alone = -1;
+	int im_alone = 1, is_ring_av = 1, im_ds = 0, im_stup = 0, im_av = 1;
 
 	/// Set SC IP by default
 	ptr = gethostbyname(SC_IP);
@@ -90,10 +90,10 @@ int main(int argc, char *argv[]) {
         if(state == joined || state == accepted){
             FD_SET(sc_sock, &rfds);
             FD_SET(prev_sock, &rfds);
-            //FD_SET(cli_sock, &rfds);
+            FD_SET(cli_sock, &rfds);
             maxfd = max(0, sc_sock);
             maxfd = max(maxfd, prev_sock);
-            //maxfd = max(maxfd, cli_sock);
+            maxfd = max(maxfd, cli_sock);
         }
         if(state == accepted) {
             FD_SET(new_prev_sock, &rfds);
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
             else if(strstr(msg, "exit") != NULL) {
                 close(sc_sock); 
                 close(next_sock);
-                //close(new_prev_sock);
+                close(new_prev_sock);
                 close(prev_sock);
                 close(cli_sock);
                 exit(EXIT_SUCCESS);
@@ -144,7 +144,9 @@ int main(int argc, char *argv[]) {
   			if(recvfrom(sc_sock, msg, sizeof(msg), 0, (struct sockaddr*)&sc_addr, &addrlen) == -1) spawn_error("Cannot receive from SC");
             fprintf(stderr, KYEL"RECV\t"RESET"%s\n", msg);
             if(strstr(msg, "OK") != NULL) {
-            	
+            	sscanf(msg, "%*[^\' '] %d;", &dummy);
+            	if(dummy != my_id) spawn_error("Received bad OK message");
+
             	if(last_msg == GET_START) {
             		sscanf(msg, "%*[^\' '] %*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
             		/// If no servers exist yet
@@ -152,7 +154,6 @@ int main(int argc, char *argv[]) {
             			im_alone = 1;
             			send_msg(SET_START, sc_sock, sc_addr);
             			last_msg = SET_START;
-            			next_msg = SET_DS;
             		}
             		/// If startup server already exists
             		else {
@@ -162,9 +163,27 @@ int main(int argc, char *argv[]) {
             			send_msg(NEW, next_sock, next_addr);
             		}
             	}
-
-            	sscanf(msg, "%*[^\' '] %*[^\';'];%d[^\';']", &dummy);
-
+            	else if(last_msg == SET_START) {
+            		/// Confirms previously asked startup status
+					im_stup = 1;
+					/// Set myself as dispatch
+            		send_msg(SET_DS, sc_sock, sc_addr);
+            		last_msg = SET_DS;
+            	}
+            	else if(last_msg == SET_DS) {
+            		/// Confirms previously asked dispatch status
+            		im_ds = 1;
+            	}
+            	else if(last_msg == WITHDRAW_DS) {
+            		/// After confirming off duty status
+            		/// Inform other servers (Token S)
+            		if(!im_alone) send_msg(TOKEN_S, next_sock, next_addr);
+            		else is_ring_av = 0;
+            		/// Inform client the service is ON
+            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
+            		/// Update my conditions
+            		im_av = 0; im_ds = 0;
+            	}
             }
         }
 
@@ -174,7 +193,7 @@ int main(int argc, char *argv[]) {
         if(FD_ISSET(prev_sock, &rfds)) {
             new_prev_sock = accept(prev_sock, (struct sockaddr*)&prev_addr, &addrlen);
             if(new_prev_sock == -1) spawn_error("Cannot accept previous server");
-            fprintf(stderr, KGRN"ACCEPTED NEW CONNECTION\n"RESET);
+            fprintf(stderr, KGRN"NEW CONNECTION\n"RESET);
             state = accepted;
         }
         /////////////////////////////////////////////////
@@ -200,6 +219,8 @@ int main(int argc, char *argv[]) {
             			next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
             			if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
             			im_alone = 0;
+
+            			/// NOTE: Handle case where ring is unavailable and a new server enters
             		}
             		else send_msg(TOKEN_N, next_sock, next_addr);
             	}
@@ -209,7 +230,7 @@ int main(int argc, char *argv[]) {
             		/// TOKEN N
             		if(strstr(dummy_s, "N") != NULL) {
             			/// Get the id of who sent the token
-            			sscanf(msg, "%*[^\' '] %d[^\';']", &dummy);
+            			sscanf(msg, "%*[^\' '] %d;", &dummy);
             			/// If the one who sent was the next, connect to the new server
             			if(dummy == next_id) {
         					memset(next_ip, 0, strlen(next_ip));
@@ -224,9 +245,75 @@ int main(int argc, char *argv[]) {
             			}
             		}
             		/// TOKEN S
+            		else if(strstr(dummy_s, "S") != NULL) {
+            			/// Get the id of who sent the token
+            			sscanf(msg, "%*[^\' '] %d;", &dummy);
+            			/// If I'm the one who sent
+            			if(my_id == dummy) {
+            				/// Send token I
+            				send_msg(TOKEN_I, next_sock, next_addr);
+            			}
+            			else {
+            				if(im_av) {
+            					send_msg(SET_DS, sc_sock, sc_addr);
+            					send_msg(TOKEN_T, next_sock, next_addr);
+            					last_msg = SET_DS;
+            				}
+            				else {
+            					/// Resend token
+                            	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+            					fprintf(stderr, KGRN"SENT\t"RESET"%s\n", msg);
+            				}
+            			}
+            		}
+            		/// TOKEN T
+            		else if(strstr(dummy_s, "T") != NULL){
+			            sscanf(msg, "%*[^\' '] %d;", &dummy);
+			            if(my_id != dummy) {
+			                /// Resend token
+                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+			            }
+			        }
+            		/// TOKEN I
+            		else if(strstr(dummy_s, "I") != NULL){
+            			if(im_av) {
+            				/// Send token D
+            			}
+            			else {
+            				/// Update ring status
+            				is_ring_av = 0;
+			            	sscanf(msg, "%*[^\' '] %d;", &dummy);
+				            if(my_id != dummy) {
+				                /// Resend token
+	                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+	        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+				            }
+            			}
+			        }
             	}
             }
 
+        }
+
+        /////////////////////////////////////////////////
+        /// Client Interface
+        /////////////////////////////////////////////////
+        if(FD_ISSET(cli_sock, &rfds)) {
+        	if(recvfrom(cli_sock, msg, sizeof(msg), 0, (struct sockaddr*)&cli_addr, &addrlen)==-1) spawn_error("Error receiving from Client");
+            fprintf(stderr, KCYN"RECV\t"RESET"%s\n", msg);
+
+            if(strstr(msg, "MY_SERVICE") != NULL) {	
+            	if(strstr(msg, "ON") != NULL) {
+            		/// Inform SC I am not dispatch anymore
+            		send_msg(WITHDRAW_DS, sc_sock, sc_addr);
+            		last_msg = WITHDRAW_DS;
+            	}
+            	else if(strstr(msg, "OFF") != NULL) {
+            		send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
+            		im_av = 1;
+            	}
+            }
         }
     }
 
