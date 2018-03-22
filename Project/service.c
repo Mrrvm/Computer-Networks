@@ -12,7 +12,7 @@ int service = 0;
 
 int main(int argc, char *argv[]) {
 	
-	int opt = 0, maxfd = 0, counter = 0, dummy = 0;
+	int opt = 0, maxfd = 0, counter = 0, dummy = 0, dummy2 = 0;
 	int last_msg = NONE;
 	struct hostent *ptr = NULL;
 	fd_set rfds;
@@ -235,6 +235,7 @@ int main(int argc, char *argv[]) {
             	/// Handle NEW_START
             	if(strstr(msg, "NEW_START") != NULL) {
             		send_msg(SET_START, sc_sock, sc_addr);
+                    last_msg = SET_START;
             	}
             	/// Handle NEW
             	else if(strstr(msg, "NEW") != NULL) {
@@ -370,48 +371,47 @@ int main(int argc, char *argv[]) {
 			        }
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
-
-                        sscanf(msg, "%*[^\' '] %d;", &dummy);
-			        	if(my_id == dummy) {
-			        		/// Leave or exit
-			                close(new_prev_sock);
-			                close(next_sock);
-                            state = off;
-                            next_id = -1;
-			                if(im_leaving == LEAVE)
-			                	fprintf(stderr, "%s\n", "SEE YA LATER!");
-			                else {
-			                	fprintf(stderr, "%s\n", "GOODBYE!");
-			                	exit(EXIT_SUCCESS);
-			                }
-			            }
-			            else if(next_id == dummy) {
-                            /// Resend token
-                            if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
-                            fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
-                            /// Close connection with next
+                        sscanf(msg, "%*[^\' '] %d;%*[^\';'];%d;", &dummy, &dummy2);
+                        if(dummy2 == my_id && dummy == next_id) {
+                            close(new_prev_sock);
                             close(next_sock);
-                            /// Start connection with the next's next
-                            memset(next_ip, 0, strlen(next_ip));
-                            sscanf(msg, "%*[^\' '] %*[^\';'];%*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
-            				next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
-            				if(connect(next_sock, (struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
-			            }
-			            else if(prev_id == dummy) {
-			            	close(new_prev_sock);
-			            	state = joined;
-                            /// Resend token
-                            if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
-                            fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
-
-			            }
-			            else {
-			                /// Resend token
-                        	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
-        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
-			            }
+                            state = joined;
+                            im_alone = 1;
+                            next_id = -1;
+                        }
+                        else {
+    			        	if(my_id == dummy) {
+    			        		/// Leave or exit
+    			                close(new_prev_sock);
+    			                close(next_sock);
+                                state = off;
+                                next_id = -1;
+    			                if(im_leaving == LEAVE)
+    			                	fprintf(stderr, "%s\n", "SEE YA LATER!");
+    			                else {
+    			                	fprintf(stderr, "%s\n", "GOODBYE!");
+    			                	exit(EXIT_SUCCESS);
+    			                }
+    			            }
+    			            else if(next_id == dummy) {
+                                /// Resend token
+                                if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+                                fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+                                /// Close connection with next
+                                close(next_sock);
+                                /// Start connection with the next's next
+                                memset(next_ip, 0, strlen(next_ip));
+                                sscanf(msg, "%*[^\' '] %*[^\';'];%*[^\';'];%d;%[^\';'];%d", &next_id, next_ip, &next_port);
+                				next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
+                				if(connect(next_sock, (struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
+    			            }
+    			            else {
+    			                /// Resend token
+                            	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+            					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+    			            }            
+                        }   
 			        }
-                    fprintf(stderr, "received %s\n", dummy_s);
             	}
             }
 

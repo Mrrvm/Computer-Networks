@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
             case 'p':
                 port = atoi(optarg);
                 break;
-            default: /* '?' */
+            default: /// ?
                 fprintf(stderr, "Usage: %s [-i csip] [-p cspt]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
                 sprintf(reply, "%s %d", GET_DS_SERVER, x);
 
                 fprintf(stderr, "Sending message: %s\n", reply);
-
                 if(sendto(sock, reply, strlen(reply)+1, 0, (struct sockaddr*)&serveraddr, addrlen)==-1)
                     exit(EXIT_FAILURE);
 
