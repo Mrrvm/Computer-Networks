@@ -149,8 +149,9 @@ int main(int argc, char *argv[]) {
                 }
                 /// If I'm nothing (!im_stup)
                else {
-                    send_msg(TOKEN_O, next_sock, next_addr);
-                }
+                    if(!im_alone) send_msg(TOKEN_O, next_sock, next_addr);
+                    else if(im_leaving == EXIT) exit(EXIT_SUCCESS);
+                } 
             }
         }
 
@@ -198,22 +199,48 @@ int main(int argc, char *argv[]) {
             	}
             	else if(last_msg == WITHDRAW_DS) {
 
-            		/// After confirming off duty status
-            		/// Inform other servers (Token S)
-            		if(!im_alone) send_msg(TOKEN_S, next_sock, next_addr);
-            		else is_ring_av = 0;
-	            	/// Inform client the service is ON
+                    last_msg = NONE;
+                    /// Inform client the service is ON
                     if(!im_leaving) {
-	            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
+                        send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
                         im_av = 0;
-            		}
+                    }
+                    /// After confirming off duty status
+                    /// Inform other servers (Token S)
+                    if(!im_alone) send_msg(TOKEN_S, next_sock, next_addr);
+                    else {
+                        if(im_leaving) {
+                            if(im_stup) {
+                                send_msg(WITHDRAW_START, sc_sock, sc_addr);
+                                last_msg = WITHDRAW_START;
+                            }
+                            else if(im_leaving == EXIT) {
+                                fprintf(stderr, "%s\n", "GOODBYE!");
+                                exit(EXIT_SUCCESS);
+                            }
+                            else if(im_leaving == LEAVE) {
+                                fprintf(stderr, "%s\n", "SEE YA LATER!");
+                                state = off;
+                            }
+                        }
+                        is_ring_av = 0;
+                    }
                     /// Update my conditions
                     im_ds = 0; 
-            		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_START) {
-                    if(!im_alone) send_msg(NEW_START, next_sock, next_addr);
-                    if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
+                    if(!im_alone) {
+                        send_msg(NEW_START, next_sock, next_addr);
+                        if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
+                    }
+                    else if(im_leaving == EXIT) {
+                        fprintf(stderr, "%s\n", "GOODBYE!");
+                        exit(EXIT_SUCCESS);
+                    }
+                    else if(im_leaving == LEAVE) {
+                        fprintf(stderr, "%s\n", "SEE YA LATER!");
+                        state = off;
+                    }
                     last_msg = NONE;
             		im_stup = 0;
             	}
@@ -379,7 +406,11 @@ int main(int argc, char *argv[]) {
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
                         sscanf(msg, "%*[^\' '] %d;%*[^\';'];%d;", &dummy, &dummy2);
+                        /// If only two servers in ring
                         if(dummy2 == my_id && dummy == next_id) {
+                            /// Resend token
+                            if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+                            fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
                             close(new_prev_sock);
                             close(next_sock);
                             state = joined;
@@ -442,7 +473,7 @@ int main(int argc, char *argv[]) {
             		im_av = 1;
             		if(!is_ring_av) {
             			/// Send token D
-            			send_msg(TOKEN_D, next_sock, next_addr);
+                        if(!im_alone) send_msg(TOKEN_D, next_sock, next_addr);
             		}
             	}
             }
