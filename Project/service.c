@@ -125,19 +125,18 @@ int main(int argc, char *argv[]) {
             		KMAG"CURRENT STATE\n\tAVAILABLE"RESET" %d\n"KMAG"\tRING AVAILABLE"RESET" %d\n"KMAG"\tNEXT ID"RESET" %d\n"RESET, 
             		im_av, is_ring_av, next_id);
             }
-            /// Handle $leave
-            else if((strstr(msg, "leave") != NULL) || (strstr(msg, "exit") != NULL)) {
-            	if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
-            	else im_leaving = LEAVE;
+        	else if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
+        	else if((strstr(msg, "leave") != NULL)) im_leaving = LEAVE;
+            /// Handle $leave and $exit
+            if(im_leaving) {
                 
                 if(state == off) {
                     fprintf(stderr, "GOODBYE!\n");
                     exit(EXIT_SUCCESS);
                 }
-
                 /// If busy with a client, warn him!
                 if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
-            	im_av = 0;
+            	im_av = 1;
 
                 if(im_ds) {
                     send_msg(WITHDRAW_DS, sc_sock, sc_addr);
@@ -186,9 +185,11 @@ int main(int argc, char *argv[]) {
             	else if(last_msg == SET_START) {
             		/// Confirms previously asked startup status
 					im_stup = 1;
-					/// Set myself as dispatch
-            		send_msg(SET_DS, sc_sock, sc_addr);
-            		last_msg = SET_DS;
+					/// Set myself as dispatch if its alone
+                    if(im_alone) {
+                		send_msg(SET_DS, sc_sock, sc_addr);
+                		last_msg = SET_DS;
+                    }
             	}
             	else if(last_msg == SET_DS) {
             		/// Confirms previously asked dispatch status
@@ -201,12 +202,13 @@ int main(int argc, char *argv[]) {
             		/// Inform other servers (Token S)
             		if(!im_alone) send_msg(TOKEN_S, next_sock, next_addr);
             		else is_ring_av = 0;
-            		if(!im_leaving) {
-	            		/// Inform client the service is ON
+	            	/// Inform client the service is ON
+                    if(!im_leaving) {
 	            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
+                        im_av = 0;
             		}
                     /// Update my conditions
-                    im_ds = 0; im_av = 0;
+                    im_ds = 0; 
             		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_START) {
