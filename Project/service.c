@@ -130,6 +130,11 @@ int main(int argc, char *argv[]) {
             	if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
             	else im_leaving = LEAVE;
                 
+                if(state == off) {
+                    fprintf(stderr, "GOODBYE!\n");
+                    exit(EXIT_SUCCESS);
+                }
+
                 /// If busy with a client, warn him!
                 if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
             	im_av = 0;
@@ -226,10 +231,10 @@ int main(int argc, char *argv[]) {
         /// Previous Server Interface
         /////////////////////////////////////////////////
         if(state == accepted && FD_ISSET(new_prev_sock, &rfds)) {
-        	dummy = read(new_prev_sock, msg, sizeof(msg));
-        	if(dummy == -1) spawn_error("Cannot read from previous server");
-            else if(dummy == 0) {close(new_prev_sock); state = joined;}
-            else{
+        	dummy = readTCP(new_prev_sock, msg);
+            if(dummy == -1) spawn_error("Cannot read from previous server");
+            if(dummy == 0) close(new_prev_sock);
+            else {
             	fprintf(stderr, KGRN"RECV\t"RESET"%s", msg);
                 
             	/// Handle NEW_START
@@ -382,9 +387,9 @@ int main(int argc, char *argv[]) {
                         else {
     			        	if(my_id == dummy) {
     			        		/// Leave or exit
-    			                close(new_prev_sock);
-    			                close(next_sock);
                                 state = off;
+                                close(new_prev_sock);
+                                close(next_sock);
                                 next_id = -1;
     			                if(im_leaving == LEAVE)
     			                	fprintf(stderr, "%s\n", "SEE YA LATER!");

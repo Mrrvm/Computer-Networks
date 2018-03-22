@@ -102,3 +102,24 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 	}
 }
 
+int readTCP(int sock, char *msg) {
+
+	char *a = NULL;
+	char ch;
+	int i= 0;
+
+	a = &msg[0];
+
+	while((i = read(sock, &ch, 1)) != 0) {
+
+		if(i == -1) return -1;
+		else {
+			*a++ = ch;
+			if(ch == '\n') {
+				return 1;
+			}
+		}
+		
+	}
+	return 0;
+}

@@ -12,3 +12,4 @@ extern int service;
 
 struct sockaddr_in define_AF_INET_conn(int *sock, int type, int port, char *ip);
 void send_msg(int type, int sock, struct sockaddr_in addr);
+int readTCP(int sock, char *msg);
