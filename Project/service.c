@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
                 send_msg(GET_START, sc_sock, sc_addr);
                 last_msg = GET_START;
                 state = joined;
+                im_leaving = 0;
             }
             /// Handle $show_state
             else if(strstr(msg, "show_state") != NULL) {
@@ -133,18 +134,17 @@ int main(int argc, char *argv[]) {
                 if(!im_av) send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
             	im_av = 0;
 
+                if(im_ds) {
+                    send_msg(WITHDRAW_DS, sc_sock, sc_addr);
+                    last_msg = WITHDRAW_DS;
+                }
                 /// If I'm the startup server (DS condition is checked on confirmations)
-                if(im_stup) {
+                else if(im_stup) {
                     send_msg(WITHDRAW_START, sc_sock, sc_addr);
                     last_msg = WITHDRAW_START;
                 }
-                /// If I'm the dispatch server (!im_stup)
-            	else if(im_ds) {
-            		send_msg(WITHDRAW_DS, sc_sock, sc_addr);
-            		last_msg = WITHDRAW_DS;
-            	}
                 /// If I'm nothing (!im_stup)
-               else if(!im_ds) {
+               else {
                     send_msg(TOKEN_O, next_sock, next_addr);
                 }
             }
@@ -176,6 +176,7 @@ int main(int argc, char *argv[]) {
             			send_msg(NEW, next_sock, next_addr);
             			last_msg = NONE;
             		}
+                    im_av = 1;
             	}
             	else if(last_msg == SET_START) {
             		/// Confirms previously asked startup status
@@ -198,19 +199,15 @@ int main(int argc, char *argv[]) {
             		if(!im_leaving) {
 	            		/// Inform client the service is ON
 	            		send_msg(YOUR_SERVICE_ON, cli_sock, cli_addr);
-	            		/// Update my conditions
-	            		im_av = 0; im_ds = 0;
             		}
+                    /// Update my conditions
+                    im_ds = 0; im_av = 0;
             		last_msg = NONE;
             	}
             	else if(last_msg == WITHDRAW_START) {
                     if(!im_alone) send_msg(NEW_START, next_sock, next_addr);
-                    if(im_leaving && !im_ds) send_msg(TOKEN_O, next_sock, next_addr);
-                    if(im_leaving && im_ds) {
-                        send_msg(WITHDRAW_DS, sc_sock, sc_addr);
-                        last_msg = WITHDRAW_DS;
-                    }
-                    else last_msg = NONE;
+                    if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
+                    last_msg = NONE;
             		im_stup = 0;
             	}
             }
@@ -234,7 +231,7 @@ int main(int argc, char *argv[]) {
             else if(dummy == 0) {close(new_prev_sock); state = joined;}
             else{
             	fprintf(stderr, KGRN"RECV\t"RESET"%s", msg);
-           
+                
             	/// Handle NEW_START
             	if(strstr(msg, "NEW_START") != NULL) {
             		send_msg(SET_START, sc_sock, sc_addr);
@@ -248,18 +245,17 @@ int main(int argc, char *argv[]) {
             			next_id = prev_id;
             			strncpy(next_ip,  prev_ip, sizeof(prev_ip));
             			next_port = prev_server_tport;
-            			prev_port = prev_server_tport;
             			next_addr = define_AF_INET_conn(&next_sock, SOCK_STREAM, next_port, next_ip);
             			if(connect(next_sock,(struct sockaddr*)&next_addr, sizeof(next_addr)) == -1) spawn_error("Cannot connect to next server");
             			im_alone = 0;
 
-            			/// Handle case where ring is unavailable and a new server enters (Send token I again)
-                        if(!is_ring_av) {
-                            end_msg(TOKEN_I, next_sock, next_addr);
-                        }
-
             		}
             		else send_msg(TOKEN_N, next_sock, next_addr);
+                    /// Handle case where ring is unavailable and a new server enters (Send token I again)
+                    if(!is_ring_av) {
+                        send_msg(TOKEN_I, next_sock, next_addr);
+                    }
+
             	}
             	/// Handle TOKEN
             	else if(strstr(msg, "TOKEN") != NULL) {
@@ -289,7 +285,13 @@ int main(int argc, char *argv[]) {
             			if(my_id == dummy) {
             				/// Send token I
             				send_msg(TOKEN_I, next_sock, next_addr);
-            				if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
+                            if(im_leaving && im_stup) {
+                                send_msg(WITHDRAW_START, sc_sock, sc_addr);
+                                last_msg = WITHDRAW_START;
+                            }
+                            if(im_leaving && !im_stup) {
+                                send_msg(TOKEN_O, next_sock, next_addr);
+                            }
             			}
             			else {
             				if(im_av) {
@@ -314,8 +316,15 @@ int main(int argc, char *argv[]) {
                         	if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
         					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 			            }
-			            else 
-			            	if(im_leaving) send_msg(TOKEN_O, next_sock, next_addr);
+			            else {
+                            if(im_leaving && im_stup) {
+                                send_msg(WITHDRAW_START, sc_sock, sc_addr);
+                                last_msg = WITHDRAW_START;
+                            }
+                            if(im_leaving && !im_stup) {
+                                send_msg(TOKEN_O, next_sock, next_addr);
+                            }
+                        }
 			        }
             		/// TOKEN I
             		else if(strstr(dummy_s, "I") != NULL) {
@@ -330,6 +339,12 @@ int main(int argc, char *argv[]) {
 	        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 				            }
             			}
+                        else {
+                            send_msg(TOKEN_D, next_sock, next_addr);
+                            is_ring_av = 1;
+                            send_msg(SET_DS, sc_sock, sc_addr);
+                            last_msg = SET_DS;
+                        }
 			        }
 			        /// TOKEN D
 			        else if(strstr(dummy_s, "D") != NULL) {
@@ -343,6 +358,7 @@ int main(int argc, char *argv[]) {
 			        		else if(my_id == dummy){
 			        			/// Inform SC server I am dispatch now
             					send_msg(SET_DS, sc_sock, sc_addr);
+                                last_msg = SET_DS;
 			        		}
 			        	}
 			        	else {
@@ -354,12 +370,14 @@ int main(int argc, char *argv[]) {
 			        }
 			        /// TOKEN O
 			        else if(strstr(dummy_s, "O") != NULL) {
+
                         sscanf(msg, "%*[^\' '] %d;", &dummy);
 			        	if(my_id == dummy) {
 			        		/// Leave or exit
 			                close(new_prev_sock);
 			                close(next_sock);
                             state = off;
+                            next_id = -1;
 			                if(im_leaving == LEAVE)
 			                	fprintf(stderr, "%s\n", "SEE YA LATER!");
 			                else {
@@ -382,6 +400,10 @@ int main(int argc, char *argv[]) {
 			            else if(prev_id == dummy) {
 			            	close(new_prev_sock);
 			            	state = joined;
+                            /// Resend token
+                            if(write(next_sock, msg, strlen(msg)) == -1) spawn_error("Cannot write to next server");
+                            fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
+
 			            }
 			            else {
 			                /// Resend token
@@ -389,6 +411,7 @@ int main(int argc, char *argv[]) {
         					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 			            }
 			        }
+                    fprintf(stderr, "received %s\n", dummy_s);
             	}
             }
 
