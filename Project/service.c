@@ -320,13 +320,6 @@ int main(int argc, char *argv[]) {
             			if(my_id == dummy) {
             				/// Send token I
             				send_msg(TOKEN_I, next_sock, next_addr);
-                            if(im_leaving && im_stup) {
-                                send_msg(WITHDRAW_START, sc_sock, sc_addr);
-                                last_msg = WITHDRAW_START;
-                            }
-                            if(im_leaving && !im_stup) {
-                                send_msg(TOKEN_O, next_sock, next_addr);
-                            }
             			}
             			else {
             				if(im_av) {
@@ -374,12 +367,20 @@ int main(int argc, char *argv[]) {
 	        					fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 				            }
             			}
-                        else {
+                        else if(!im_leaving){
                             send_msg(TOKEN_D, next_sock, next_addr);
                             is_ring_av = 1;
-                            send_msg(SET_DS, sc_sock, sc_addr);
-                            last_msg = SET_DS;
                         }
+                        else {
+                                if(im_leaving && im_stup) {
+                                send_msg(WITHDRAW_START, sc_sock, sc_addr);
+                                last_msg = WITHDRAW_START;
+                                }
+                                if(im_leaving && !im_stup) {
+                                    send_msg(TOKEN_O, next_sock, next_addr);
+                                }
+                            }
+                        
 			        }
 			        /// TOKEN D
 			        else if(strstr(dummy_s, "D") != NULL) {
