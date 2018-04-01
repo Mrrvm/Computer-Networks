@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     addrlen = sizeof(serveraddr);
 
 
-    fprintf(stderr, "Arguments %s, %d\n", inet_ntoa((struct in_addr)serveraddr.sin_addr), port);
+    fprintf(stderr, "Arguments %s, %d\n", inet_ntoa(serveraddr.sin_addr), port);
 
     state = idle;
 
