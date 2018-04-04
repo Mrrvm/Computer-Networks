@@ -8,7 +8,7 @@ service:
 	$(CC) defs.c sockets.c service.c $(CFLAGS) -o service
 
 reqserv: 
-	$(CC) reqserv.c $(CFLAGS) -o reqserv
+	$(CC) defs.c reqserv.c $(CFLAGS) -o reqserv
 
 clean:
 	-rm $(wildcard *.o)

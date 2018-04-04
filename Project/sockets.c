@@ -87,7 +87,7 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 	}
 	else if(type == NEW_START) {
 		sprintf(msg, "NEW_START\n");
-		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send YOUR_SERVICE OFF\n");
+		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send NEW_START\n");
 		fprintf(stderr, KGRN"SENT\t"RESET"%s", msg);
 	}
 	else if(type == YOUR_SERVICE_ON) {
@@ -98,6 +98,21 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
 	else if(type == YOUR_SERVICE_OFF) {
 		sprintf(msg, "YOUR_SERVICE OFF");
 		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send YOUR_SERVICE OFF\n");
+		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+	}
+	else if(type == GET_DS_SERVER) {
+		sprintf(msg, "GET_DS_SERVER %d", service);
+		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send GET_DS_SERVER\n");
+		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+	}
+	else if(type == MY_SERVICE_ON) {
+		sprintf(msg, "MY_SERVICE_ON");
+		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE_ON\n");
+		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+	}
+	else if(type == MY_SERVICE_OFF) {
+		sprintf(msg, "MY_SERVICE OFF");
+		if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE OFF\n");
 		fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
 	}
 }

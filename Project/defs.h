@@ -2,6 +2,7 @@
 #include <linux/if_link.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <netdb.h>
@@ -11,7 +12,6 @@
 #include <arpa/inet.h>
 #include <math.h>
 #include <ifaddrs.h>
-#include <time.h>
 #include <ctype.h>
 #include <net/if.h>
 #include <errno.h>
@@ -48,6 +48,10 @@
 #define WITHDRAW_DS 13
 #define YOUR_SERVICE_ON 14
 #define YOUR_SERVICE_OFF 15
+
+#define GET_DS_SERVER 16
+#define MY_SERVICE_ON 17
+#define MY_SERVICE_OFF 18
 
 #define EXIT 1
 #define LEAVE 2

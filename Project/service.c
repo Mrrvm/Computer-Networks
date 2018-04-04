@@ -127,6 +127,7 @@ int main(int argc, char *argv[]) {
             }
         	else if((strstr(msg, "exit") != NULL)) im_leaving = EXIT;
         	else if((strstr(msg, "leave") != NULL)) im_leaving = LEAVE;
+            else fprintf(stderr, "Invalid Command\n");
             /// Handle $leave and $exit
             if(im_leaving) {
                 
@@ -472,10 +473,12 @@ int main(int argc, char *argv[]) {
             	else if(strstr(msg, "OFF") != NULL) {
             		send_msg(YOUR_SERVICE_OFF, cli_sock, cli_addr);
             		im_av = 1;
-            		if(!is_ring_av) {
-            			/// Send token D
-                        if(!im_alone) send_msg(TOKEN_D, next_sock, next_addr);
-            		}
+                    /// Set as dispatch if is alone
+                    if(im_alone) send_msg(SET_DS, sc_sock, sc_addr);  
+            	    /// Send token D
+                    else if(!is_ring_av) send_msg(TOKEN_D, next_sock, next_addr);
+                        
+            		
             	}
             }
         }
