@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     unsigned int addrlen = 0;
     int maxfd, counter;
     int last_msg = NONE;
-    struct timeval tv;
+    struct timeval tv, t_start, t_end;
     struct hostent *hostptr = NULL;
     fd_set rfds;
     char msg[64] = {0}, reply[64] = {0}, ip[64] = {0}, sc_ip[64] = {0};
@@ -109,13 +109,12 @@ int main(int argc, char *argv[])
         }
 
         if(last_msg == NONE){
-            printf("NONE\n");
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
         else {
-            printf("SOME\n");
-            tv.tv_sec = 3;
-            tv.tv_usec = 0;
+            if(gettimeofday(&timer_end, NULL) == -1) spawn_error("Cannot gettimeofday");
+            tv.tv_sec = TIMES;
+            tv.tv_usec = TIMEUS - tv.tv_usec;
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
 
@@ -184,6 +183,7 @@ int main(int argc, char *argv[])
 
                         send_msg(MY_SERVICE_ON, sock, serveraddr);
                         last_msg = MY_SERVICE_ON;
+                        tv.tv_usec = 0;
                     }
                 }
                 else if(strstr(msg, "YOUR_SERVICE") != NULL){
@@ -203,6 +203,7 @@ int main(int argc, char *argv[])
                         in_service = 1; 
                         
                     last_msg = NONE;
+                    tv.tv_usec = 0;
                 }
             }
             

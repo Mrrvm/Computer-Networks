@@ -105,8 +105,8 @@ int main(int argc, char *argv[]) {
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
         else {
-            tv.tv_sec = 3;
-            tv.tv_usec = 0;
+            tv.tv_sec = TIMES;
+            tv.tv_usec = TIMEUS;
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
 
