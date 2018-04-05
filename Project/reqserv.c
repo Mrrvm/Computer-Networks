@@ -15,12 +15,12 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
     else if(type == MY_SERVICE_ON) {
         sprintf(msg, "MY_SERVICE_ON");
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE_ON\n");
-        fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+        fprintf(stderr, KYEL"SENT\t"RESET"%s\n", msg);
     }
     else if(type == MY_SERVICE_OFF) {
         sprintf(msg, "MY_SERVICE OFF");
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE OFF\n");
-        fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+        fprintf(stderr, KYEL"SENT\t"RESET"%s\n", msg);
     }
 }
 
@@ -44,11 +44,9 @@ struct sockaddr_in define_AF_INET_conn(int *sock, int type, int port, char *ip) 
     return addr;
 }
 
-int main(int argc, char *argv[])
-{
-    int opt;
-
+int main(int argc, char *argv[]) {
     
+    int opt;
     unsigned int addrlen = 0;
     int maxfd, counter;
     int last_msg = NONE;
@@ -93,7 +91,7 @@ int main(int argc, char *argv[])
     if(port == -1) port = SC_PORT;
     serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
 
-    fprintf(stderr, "Arguments %s, %d\n", inet_ntoa(serveraddr.sin_addr), port);
+    fprintf(stderr, "Connecting to %s:%d ...\n", inet_ntoa(serveraddr.sin_addr), port);
 
 
     while(1){
@@ -109,12 +107,10 @@ int main(int argc, char *argv[])
 
         if(last_msg == NONE){
         /// Define select with no timer
-            printf("NONE\n");
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
         else {
         /// Define select with a timer of 3 seconds
-            printf("SOME\n");
             tv.tv_sec = 3;
             tv.tv_usec = 0;
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
@@ -125,7 +121,7 @@ int main(int argc, char *argv[])
 
         if(counter < 0) spawn_error("select() failed");
         else if(counter == 0) {
-            fprintf(stderr, "Timed out\n");
+            fprintf(stderr, KRED"Timed out\n"RESET);
             send_msg(last_msg, sock, serveraddr);
         }
         else if(counter > 0) {
@@ -166,7 +162,7 @@ int main(int argc, char *argv[])
                 }
                 
                 else
-                    fprintf(stderr, "Invalid Command\n");
+                    fprintf(stderr, KRED"Invalid Command\n"RESET);
                     
             }
 
@@ -177,15 +173,15 @@ int main(int argc, char *argv[])
 
                 if(recvfrom(sock, msg, sizeof(msg), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
                     exit(EXIT_FAILURE);
-                fprintf(stderr, KYEL"RECV\t"RESET"%s\n", msg);
 
                 /// Received OK
                 if(strstr(msg, "OK") != NULL){
+                    fprintf(stderr, KCYN"RECV\t"RESET"%s\n", msg);
 
                     sscanf(msg, "%*[^\' '] %d;%[^\';'];%d", &id, ip, &upt);
                     if(id == 0){
                     /// No services available
-                        fprintf(stderr, "There are no servers available for this service\n");
+                        fprintf(stderr, KRED"There are no servers available for this service\n"RESET);
                     }
                     else {
                         /// Close connection with SC, open it with service
@@ -198,6 +194,7 @@ int main(int argc, char *argv[])
                 }
                 /// Received message orm service
                 else if(strstr(msg, "YOUR_SERVICE") != NULL){
+                    fprintf(stderr, KYEL"RECV\t"RESET"%s\n", msg);
 
                     if(strstr(msg, "OFF") != NULL){
                         /// Close connection with service
