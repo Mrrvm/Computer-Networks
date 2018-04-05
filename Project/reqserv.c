@@ -7,7 +7,6 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
     int addrlen = sizeof(addr);
     char msg[64] = {0};
 
-
     if(type == GET_DS_SERVER) {
         sprintf(msg, "GET_DS_SERVER %d", service);
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send GET_DS_SERVER\n");
@@ -56,7 +55,7 @@ int main(int argc, char *argv[])
     struct timeval tv;
     struct hostent *hostptr = NULL;
     fd_set rfds;
-    char msg[64] = {0}, reply[64] = {0}, ip[64] = {0}, sc_ip[64] = {0};
+    char msg[64] = {0}, ip[64] = {0}, sc_ip[64] = {0};
     int id;
     /// Ports
     int port = -1;
@@ -123,7 +122,6 @@ int main(int argc, char *argv[])
 
         /// Clean message
         memset(msg,0,strlen(msg));
-        memset(reply,0,strlen(reply));
 
         if(counter < 0) spawn_error("select() failed");
         else if(counter == 0) {
