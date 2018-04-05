@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
         memset(msg,0,strlen(msg));
         memset(reply,0,strlen(reply));
 
-        if(counter < 0) exit(EXIT_FAILURE);
+        if(counter < 0) spawn_error("select() failed");
 
         else if(counter == 0) {
             fprintf(stderr, "Timed out\n");
