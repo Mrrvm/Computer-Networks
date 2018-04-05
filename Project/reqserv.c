@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    /// Define the connection to the central server
     if(port == -1) port = SC_PORT;
-
     serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
 
     fprintf(stderr, "Arguments %s, %d\n", inet_ntoa(serveraddr.sin_addr), port);
@@ -109,53 +109,59 @@ int main(int argc, char *argv[])
         }
 
         if(last_msg == NONE){
+        /// Define select with no timer
             printf("NONE\n");
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
         else {
+        /// Define select with a timer of 3 seconds
             printf("SOME\n");
             tv.tv_sec = 3;
             tv.tv_usec = 0;
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
 
-
         /// Clean message
         memset(msg,0,strlen(msg));
         memset(reply,0,strlen(reply));
 
         if(counter < 0) spawn_error("select() failed");
-
         else if(counter == 0) {
             fprintf(stderr, "Timed out\n");
             send_msg(last_msg, sock, serveraddr);
         }
         else if(counter > 0) {
 
+            /////////////////////////////////////////////////
+            /// Terminal Interface
+            /////////////////////////////////////////////////            
             if(FD_ISSET(0, &rfds)){
                 fgets(msg, 64, stdin);
                 state = busy;
 
+                /// Request service
                 if(strstr(msg, "rs") != NULL && in_service == 0){
                     
                     sscanf(msg, "%*[^\' '] %d", &service);
-
                     send_msg(GET_DS_SERVER, sock, serveraddr);
                     last_msg = GET_DS_SERVER;
 
                 }
                 else if(strstr(msg, "exit") != NULL){
                     if(in_service == 0){
+                    /// Close imediately
                         close(sock);
                         exit(EXIT_SUCCESS);
                     }
                     else {
+                    /// Warn the service
                         send_msg(MY_SERVICE_OFF, sock, serveraddr);
                         last_msg = MY_SERVICE_OFF;
                         im_exiting = 1;  
                     }
                 }   
                 else if(strstr(msg, "ts") != NULL){
+                    /// Warn the service
                     send_msg(MY_SERVICE_OFF, sock, serveraddr);
                     last_msg = MY_SERVICE_OFF;
                     im_exiting = 0;
@@ -166,37 +172,41 @@ int main(int argc, char *argv[])
                     
             }
 
+            /////////////////////////////////////////////////
+            /// SC/Service Interface
+            /////////////////////////////////////////////////
             if(FD_ISSET(sock, &rfds)) {
 
                 if(recvfrom(sock, msg, sizeof(msg), 0, (struct sockaddr*)&serveraddr,&addrlen)==-1)
                     exit(EXIT_FAILURE);
                 fprintf(stderr, KYEL"RECV\t"RESET"%s\n", msg);
 
+                /// Received OK
                 if(strstr(msg, "OK") != NULL){
 
                     sscanf(msg, "%*[^\' '] %d;%[^\';'];%d", &id, ip, &upt);
                     if(id == 0){
+                    /// No services available
                         fprintf(stderr, "There are no servers available for this service\n");
                     }
                     else {
+                        /// Close connection with SC, open it with service
                         close(sock);
                         serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, upt, ip);
-
+                        /// Warn service
                         send_msg(MY_SERVICE_ON, sock, serveraddr);
                         last_msg = MY_SERVICE_ON;
                     }
                 }
+                /// Received message orm service
                 else if(strstr(msg, "YOUR_SERVICE") != NULL){
 
                     if(strstr(msg, "OFF") != NULL){
-                        if(im_exiting){
-                            close(sock);
-                            exit(EXIT_SUCCESS);
-                        }
-
+                        /// Close connection with service
                         close(sock);
+                        if(im_exiting) exit(EXIT_SUCCESS);
+                        /// Reconnect with SC
                         serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
-
                         in_service = 0;
                     }
                     else if(strstr(msg, "ON") != NULL)
@@ -208,7 +218,4 @@ int main(int argc, char *argv[])
             
         }
     }
-
-    close(sock);
-    exit(EXIT_SUCCESS);
 }
