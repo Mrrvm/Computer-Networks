@@ -32,7 +32,7 @@
 #define SC_IP "tejo.tecnico.ulisboa.pt"
 #define LOCALHOST "127.0.0.1"
 #define TIMEUS 0
-#define TIMES 3
+#define TIMES 2
 
 #define NONE 0
 #define GET_START 1

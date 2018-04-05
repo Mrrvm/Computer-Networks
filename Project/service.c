@@ -15,8 +15,9 @@ int main(int argc, char *argv[]) {
 	int opt = 0, maxfd = 0, counter = 0, dummy = 0, dummy2 = 0;
 	int last_msg = NONE;
 	struct hostent *ptr = NULL;
-    struct timeval tv;
+    struct timeval tv, end_t, start_t;
 	fd_set rfds;
+    int reset_t = 1, elapsed = 0;
 	char msg[64] = {0};
 	char *dummy_s = NULL;
 	unsigned int addrlen = 0;
@@ -101,12 +102,23 @@ int main(int argc, char *argv[]) {
             maxfd = max(maxfd, new_prev_sock);
         }
 
+        /// Define select with no timer
         if(last_msg == NONE){
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
+        /// Define select with timer if waiting for a message
         else {
-            tv.tv_sec = TIMES;
-            tv.tv_usec = TIMEUS;
+            /// if message was received or timeout, reset time 
+            if(reset_t) {
+                end_t = start_t;
+                elapsed = 0;
+            }
+            else if(gettimeofday(&end_t, NULL) == -1) spawn_error("Cannot gettimeofday");
+            /// Define timeout subtracting time that has elapsed 
+            elapsed += (int)end_t.tv_sec - (int)start_t.tv_sec;
+            tv.tv_sec = TIMES - elapsed;
+            reset_t = 0;
+            if(gettimeofday(&start_t, NULL) == -1) spawn_error("Cannot gettimeofday");
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
 
@@ -118,6 +130,7 @@ int main(int argc, char *argv[]) {
         else if(counter == 0) {
             fprintf(stderr, "Timed out\n");
             send_msg(last_msg, sc_sock, sc_addr);
+            reset_t = 1;
         }
         else if(counter > 0) {
             /////////////////////////////////////////////////
@@ -188,6 +201,7 @@ int main(int argc, char *argv[]) {
                 			im_alone = 1;
                 			send_msg(SET_START, sc_sock, sc_addr);
                 			last_msg = SET_START;
+
                 		}
                 		/// If startup server already exists
                 		else {
@@ -261,6 +275,7 @@ int main(int argc, char *argv[]) {
                         last_msg = NONE;
                 		im_stup = 0;
                 	}
+                    reset_t = 1;
                 }
             }
 

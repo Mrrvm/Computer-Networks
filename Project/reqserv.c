@@ -50,9 +50,10 @@ int main(int argc, char *argv[]) {
     unsigned int addrlen = 0;
     int maxfd, counter;
     int last_msg = NONE;
-    struct timeval tv;
+    struct timeval tv, start_t, end_t;
     struct hostent *hostptr = NULL;
     fd_set rfds;
+    int reset_t = 1, elapsed = 0;
     char msg[64] = {0}, ip[64] = {0}, sc_ip[64] = {0};
     int id;
     /// Ports
@@ -93,8 +94,6 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "Connecting to %s:%d ...\n", inet_ntoa(serveraddr.sin_addr), port);
 
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
 
     while(1){
         
@@ -108,14 +107,23 @@ int main(int argc, char *argv[]) {
         }
 
 
+        /// Define select with no timer
         if(last_msg == NONE){
-            /// Define select with no timer
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, (struct timeval*)NULL);
         }
+        /// Define select with timer if waiting for a message
         else {
-            /// Define select with a timer of 3 seconds
-            tv.tv_sec = TIMES - tv.tv_sec;
-            tv.tv_usec = TIMEUS - tv.tv_usec;
+            /// if message was received or timeout, reset time 
+            if(reset_t) {
+                end_t = start_t;
+                elapsed = 0;
+            }
+            else if(gettimeofday(&end_t, NULL) == -1) spawn_error("Cannot gettimeofday");
+            /// Define timeout subtracting time that has elapsed 
+            elapsed += (int)end_t.tv_sec - (int)start_t.tv_sec;
+            tv.tv_sec = TIMES - elapsed;
+            reset_t = 0;
+            if(gettimeofday(&start_t, NULL) == -1) spawn_error("Cannot gettimeofday");
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
 
@@ -126,6 +134,7 @@ int main(int argc, char *argv[]) {
         else if(counter == 0) {
             fprintf(stderr, KRED"Timed out\n"RESET);
             send_msg(last_msg, sock, serveraddr);
+            reset_t = 1;
         }
         else if(counter > 0) {
 
@@ -193,8 +202,7 @@ int main(int argc, char *argv[]) {
                         /// Warn service
                         send_msg(MY_SERVICE_ON, sock, serveraddr);
                         last_msg = MY_SERVICE_ON;
-                        tv.tv_sec = 0;
-                        tv.tv_usec = 0;
+                        
                     }
                 }
                 /// Received message orm service
@@ -213,8 +221,8 @@ int main(int argc, char *argv[]) {
                         in_service = 1; 
                         
                     last_msg = NONE;
-                    tv.tv_usec = 0;
                 }
+                reset_t = 1;
             }
             
         }
