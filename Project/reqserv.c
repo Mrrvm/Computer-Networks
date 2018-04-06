@@ -10,17 +10,17 @@ void send_msg(int type, int sock, struct sockaddr_in addr) {
     if(type == GET_DS_SERVER) {
         sprintf(msg, "GET_DS_SERVER %d", service);
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send GET_DS_SERVER\n");
-        fprintf(stderr, KCYN"SENT\t"RESET"%s\n", msg);
+        spam((stderr, KCYN"SENT\t"RESET"%s\n", msg));
     }
     else if(type == MY_SERVICE_ON) {
         sprintf(msg, "MY_SERVICE_ON");
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE_ON\n");
-        fprintf(stderr, KYEL"SENT\t"RESET"%s\n", msg);
+        spam((stderr, KYEL"SENT\t"RESET"%s\n", msg));
     }
     else if(type == MY_SERVICE_OFF) {
         sprintf(msg, "MY_SERVICE OFF");
         if(sendto(sock, msg, strlen(msg), 0, (struct sockaddr*)&addr, addrlen) == -1) spawn_error("Could not send MY_SERVICE OFF\n");
-        fprintf(stderr, KYEL"SENT\t"RESET"%s\n", msg);
+        spam((stderr, KYEL"SENT\t"RESET"%s\n", msg));
     }
 }
 
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     struct timeval tv, start_t, end_t;
     struct hostent *hostptr = NULL;
     fd_set rfds;
-    int reset_t = 1, elapsed = 0;
+    int reset_t = 1, elapsed = 0, n_timeouts = 0;
     char msg[64] = {0}, ip[64] = {0}, sc_ip[64] = {0};
     int id;
     /* Ports */
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     if(port == -1) port = SC_PORT;
     serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
 
-    fprintf(stderr, "Connecting to %s:%d ...\n", inet_ntoa(serveraddr.sin_addr), port);
+    spam((stderr, "Connecting to %s:%d ...\n", inet_ntoa(serveraddr.sin_addr), port));
 
 
     while(1){
@@ -100,12 +100,13 @@ int main(int argc, char *argv[]) {
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
         maxfd = 0;
-
+        /* Only listen to server socket after first user input */
         if(state == busy){
             FD_SET(sock, &rfds);
             maxfd = max(0,sock);
         }
 
+        tv.tv_usec = 0;
 
         /* Define select with no timer */
         if(last_msg == NONE){
@@ -118,21 +119,41 @@ int main(int argc, char *argv[]) {
                 end_t = start_t;
                 elapsed = 0;
             }
+            /*get current time to compute time since select was called */
             else if(gettimeofday(&end_t, NULL) == -1) spawn_error("Cannot gettimeofday");
             /* Define timeout subtracting time that has elapsed  */
             elapsed += (int)end_t.tv_sec - (int)start_t.tv_sec;
             tv.tv_sec = TIMES - elapsed;
+            if(tv.tv_sec < 0) tv.tv_sec = 0;
             reset_t = 0;
+            /*get current time to compute time since select was called */
             if(gettimeofday(&start_t, NULL) == -1) spawn_error("Cannot gettimeofday");
+            /* select */
             counter = select(maxfd+1, &rfds,  (fd_set*)NULL, (fd_set*)NULL, &tv);
         }
-
         /* Clean message */
         memset(msg,0,strlen(msg));
 
         if(counter < 0) spawn_error("select() failed");
         else if(counter == 0) {
             fprintf(stderr, KRED"Timed out\n"RESET);
+
+            n_timeouts++;
+
+            if(n_timeouts == 5) {
+                if(last_msg == GET_DS_SERVER){
+                    fprintf(stderr, KRED"Too many timeouts from SC. Please try again.\n"RESET);
+
+                }
+                else {
+                    fprintf(stderr, KRED"Too many timeouts from Service. Terminating service.\n"RESET);
+                    close(sock);
+                    serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
+                    in_service = 0;
+                }
+                n_timeouts = 0;
+                last_msg = NONE;    
+            }
             send_msg(last_msg, sock, serveraddr);
             reset_t = 1;
         }
@@ -156,6 +177,7 @@ int main(int argc, char *argv[]) {
                 else if(strstr(msg, "exit") != NULL){
                     if(in_service == 0){
                     /* Close imediately */
+                        fprintf(stderr, "Exiting\n");
                         close(sock);
                         exit(EXIT_SUCCESS);
                     }
@@ -166,7 +188,7 @@ int main(int argc, char *argv[]) {
                         im_exiting = 1;  
                     }
                 }   
-                else if(strstr(msg, "ts") != NULL){
+                else if(strstr(msg, "ts") != NULL && in_service != 0){
                     /* Warn the service */
                     send_msg(MY_SERVICE_OFF, sock, serveraddr);
                     last_msg = MY_SERVICE_OFF;
@@ -188,12 +210,13 @@ int main(int argc, char *argv[]) {
 
                 /* Received OK */
                 if(strstr(msg, "OK") != NULL){
-                    fprintf(stderr, KCYN"RECV\t"RESET"%s\n", msg);
+                    spam((stderr, KCYN"RECV\t"RESET"%s\n", msg));
 
                     sscanf(msg, "%*[^\' '] %d;%[^\';'];%d", &id, ip, &upt);
                     if(id == 0){
                     /* No services available */
-                        fprintf(stderr, KRED"There are no servers available for this service\n"RESET);
+                        spam((stderr, KRED"There are no servers available for this service\n"RESET));
+                        last_msg = NONE;
                     }
                     else {
                         /* Close connection with SC, open it with service */
@@ -205,9 +228,9 @@ int main(int argc, char *argv[]) {
                         
                     }
                 }
-                /* Received message orm service */
+                /* Received message from service */
                 else if(strstr(msg, "YOUR_SERVICE") != NULL){
-                    fprintf(stderr, KYEL"RECV\t"RESET"%s\n", msg);
+                    spam((stderr, KYEL"RECV\t"RESET"%s\n", msg));
 
                     if(strstr(msg, "OFF") != NULL){
                         /* Close connection with service */
@@ -216,12 +239,18 @@ int main(int argc, char *argv[]) {
                         /* Reconnect with SC */
                         serveraddr = define_AF_INET_conn(&sock, SOCK_DGRAM, port, sc_ip);
                         in_service = 0;
+                        fprintf(stderr, "Left Service\n");
                     }
-                    else if(strstr(msg, "ON") != NULL)
+                    else if(strstr(msg, "ON") != NULL) {
                         in_service = 1; 
+                        fprintf(stderr, "Joined Service\n");
+                        
+                    }
+                    else spawn_error("Badly formated message received");
                         
                     last_msg = NONE;
                 }
+                else spawn_error("Badly formated message received");
                 reset_t = 1;
             }
             

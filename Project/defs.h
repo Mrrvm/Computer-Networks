@@ -16,6 +16,14 @@
 #include <net/if.h>
 #include <errno.h>
 
+#define DEBUG_ON
+
+#ifdef DEBUG_ON
+  #define spam(a) fprintf a
+#else
+  #define spam(a) (void)0
+#endif
+
 #define KNRM  "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
