@@ -33,21 +33,21 @@ int main(void)
 
     }
 
-    // create socket
+    /* create socket */
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(fd == -1)
     {
         exit(0);
     }
 
-    // get host
+    /* get host */
     hostptr = gethostbyname("tejo.tecnico.ulisboa.pt");
     if(hostptr == NULL)
     {
         exit(0);
     }
 
-    // configure UDP connection
+    /* configure UDP connection */
     if(memset((void *)&serveraddr, (int)'\0', sizeof(serveraddr)) == NULL)
     {
         serveraddr.sin_family = AF_INET;
@@ -58,7 +58,7 @@ int main(void)
     memset(buffer, 0, strlen(buffer));
     sprintf(buffer, "%s %s;%s", "WITHDRAW_START", service, id);
 
-    // Exterminate
+    /* Exterminate */
     if(sendto(fd, buffer, strlen(buffer)+1, 0, (struct sockaddr *)&serveraddr, addrlen) != -1)
     {
         memset(buffer, 0, strlen(buffer));
@@ -73,7 +73,7 @@ int main(void)
 
                 memset(buffer, 0, strlen(buffer));
 
-                // Verify extermination
+                /* Verify extermination */
                 if(recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&serveraddr, &addrlen) != -1)
                 {
                     sscanf(buffer, "%*[^\' '] %*[^\';'];%[^\';'];", id_stup);
