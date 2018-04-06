@@ -16,7 +16,7 @@
 #include <net/if.h>
 #include <errno.h>
 
-#define DEBUG_ON
+#define DEBUG_O
 
 #ifdef DEBUG_ON
   #define spam(a) fprintf a
